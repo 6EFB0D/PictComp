@@ -43,12 +43,26 @@ jobs:
 
       - name: Create icons
         run: |
+          if [ ! -f assets/icon/pictcomp_bright.jpg ]; then
+            echo "pictcomp_bright.jpg not found, creating placeholder..."
+            python -c "
+from PIL import Image
+from pathlib import Path
+p = Path('assets/icon/pictcomp_bright.jpg')
+p.parent.mkdir(parents=True, exist_ok=True)
+img = Image.new('RGB', (256, 256), color=(100, 149, 237))
+img.save(p)
+print('Created placeholder pictcomp_bright.jpg')
+"
+          fi
           python assets/icon/create_icons.py
 
       - name: Build application
         run: |
           chmod +x build_config/build_macos.sh
           ./build_config/build_macos.sh
+          echo "Contents of dist/:"
+          ls -la dist/
 
       - name: Create DMG
         run: |

@@ -19,12 +19,23 @@ echo "========================================"
 rm -rf "${DMG_DIR}"
 mkdir -p "${DMG_DIR}"
 
-# GUI版アプリをコピー
+# GUI版アプリをコピー（PyInstallerの出力パスは環境により異なる場合あり）
+APP_SOURCE=""
 if [ -d "dist/PictComp.app" ]; then
-    cp -R "dist/PictComp.app" "${DMG_DIR}/"
-    echo "✓ Copied PictComp.app"
+    APP_SOURCE="dist/PictComp.app"
+elif [ -d "dist/PictComp/PictComp.app" ]; then
+    APP_SOURCE="dist/PictComp/PictComp.app"
+elif [ -d "dist/build_config/PictComp.app" ]; then
+    APP_SOURCE="dist/build_config/PictComp.app"
+fi
+
+if [ -n "$APP_SOURCE" ]; then
+    cp -R "$APP_SOURCE" "${DMG_DIR}/PictComp.app"
+    echo "✓ Copied PictComp.app from $APP_SOURCE"
 else
     echo "ERROR: PictComp.app not found in dist/"
+    echo "Contents of dist/:"
+    ls -laR dist/ 2>/dev/null || true
     exit 1
 fi
 
