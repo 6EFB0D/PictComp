@@ -73,6 +73,21 @@ class PresetManager:
         }
     }
     
+    # Web公開用プリセット（EXIF削除を強制、セキュリティ・個人情報保護のため）
+    WEB_PUBLISHING_PRESETS = [
+        "ブログ用",
+        "SNS用（Twitter/Instagram）",
+        "Web用（高品質）",
+        "Web用（軽量）",
+        "メール添付用",
+        "PNG透過保持",
+    ]
+
+    @classmethod
+    def is_web_publishing_preset(cls, preset_name: str) -> bool:
+        """Web公開用プリセットかどうか（EXIF削除強制対象）"""
+        return preset_name in cls.WEB_PUBLISHING_PRESETS
+
     @classmethod
     def get_preset_names(cls) -> list:
         """プリセット名のリストを取得"""

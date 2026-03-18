@@ -23,15 +23,20 @@ import pillow_heif
 import pandas as pd
 
 
-# ページ設定
+# ページ設定（サイドバー非表示で上段全幅＋下段縦分割）
 st.set_page_config(
     page_title="PictComp - 画像一括圧縮",
     page_icon="🖼️",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 # ライセンス管理
 license_manager = LicenseManager()
+
+# プロジェクト情報・ロゴ（背景に合わせて bright=明るい背景 / dark=暗い背景）
+from version import COPYRIGHT, HOMEPAGE, SUPPORT_EMAIL
+LOGO_PATH = Path(__file__).parent / "assets" / "icon" / "pictcomp_bright.jpg"  # 明るい背景向け
 
 
 def sanitize_filename(filename):
@@ -225,8 +230,94 @@ def generate_filename_from_exif(image_bytes, filename, original_name, output_for
 
 
 def main():
-    st.title("🖼️ PictComp - 画像一括圧縮アプリ")
-    st.markdown("**すべての処理はあなたのコンピュータ上で完結します**。画像ファイルを選択して、一括して圧縮・リサイズできます。")
+    # === カスタムCSS: タブ拡大・左ペイン余白・ヘッダー固定・左右ペイン独立スクロール ===
+    st.markdown("""
+    <style>
+        /* タブをもう一段大きくする */
+        .stTabs [data-baseweb="tab-list"] button {
+            font-size: 1.4rem !important;
+            padding: 0.75rem 1.5rem !important;
+        }
+        .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
+            font-size: 1.4rem !important;
+        }
+        /* ヘッダー固定＋コンパクトに（余白削減） */
+        div[data-testid="stVerticalBlock"]:has(div.fixed-header) {
+            position: sticky;
+            top: 0;
+            background-color: var(--background-color, #ffffff);
+            z-index: 999;
+            padding-top: 0.5rem !important;
+            padding-bottom: 0.25rem !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(div.fixed-header) [data-testid="stHorizontalBlock"] {
+            padding-bottom: 0 !important;
+        }
+        /* ヘッダー内の要素をコンパクトに */
+        div[data-testid="stVerticalBlock"]:has(div.fixed-header) .stMarkdown {
+            margin-bottom: 0 !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(div.fixed-header) hr {
+            margin-top: 0.5rem !important;
+            margin-bottom: 0.5rem !important;
+        }
+        /* 左右ペインを独立してスクロール可能に（高さを最大限確保） */
+        div[data-testid="stVerticalBlock"]:has(div.scrollable-panes-marker) {
+            max-height: calc(100vh - 80px) !important;
+            overflow: hidden !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(div.scrollable-panes-marker) [data-testid="stHorizontalBlock"] {
+            max-height: calc(100vh - 80px) !important;
+            overflow: hidden !important;
+        }
+        /* 左右カラムそれぞれ独立スクロール */
+        div[data-testid="stVerticalBlock"]:has(div.scrollable-panes-marker) [data-testid="stHorizontalBlock"] > div {
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            max-height: calc(100vh - 80px) !important;
+            min-height: 0 !important;  /* flex子要素でoverflowを効かせる */
+            padding-bottom: 120px !important;  /* スクロール最下部でフッターに隠れないよう余白 */
+        }
+        /* フッター（ZipSearch参考）: 常に画面下部に固定表示 */
+        .pictcomp-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #f8f9fa;
+            padding: 12px 24px;
+            text-align: center;
+            color: #6c757d;
+            font-size: 13px;
+            border-top: 3px solid #764ba2;
+            z-index: 998;
+        }
+        .pictcomp-footer a {
+            color: #6c757d;
+            text-decoration: none;
+        }
+        .pictcomp-footer a:hover {
+            text-decoration: underline;
+        }
+        /* フッター分の余白をメインコンテンツに追加 */
+        div[data-testid="stAppViewContainer"] > div {
+            padding-bottom: 80px !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # === 上段: 全幅ヘッダー（ロゴ・アプリ名）※スクロール時も固定表示 ===
+    header_container = st.container()
+    with header_container:
+        header_col1, header_col2 = st.columns([1, 4])
+        with header_col1:
+            if LOGO_PATH.exists():
+                st.image(str(LOGO_PATH), width=80)
+        with header_col2:
+            st.markdown("# PictComp - 画像一括圧縮アプリ")
+            st.caption("すべての処理はあなたのコンピュータ上で完結します。画像ファイルを選択して、一括して圧縮・リサイズできます。")
+        st.divider()
+        st.markdown('<div class="fixed-header"></div>', unsafe_allow_html=True)
     
     # セキュリティとプライバシーに関する説明
     with st.expander("🔒 プライバシーとセキュリティについて", expanded=False):
@@ -292,16 +383,6 @@ def main():
             logger.info(f"複数ファイル選択サポート: {support_multiple}")
             logger.info(f"accept_multipleパラメータ存在: {accept_multiple_exists}")
             logger.info("=" * 50)
-            
-            # 画面にもデバッグ情報を表示
-            with st.expander("🔍 デバッグ情報（複数ファイル選択）", expanded=False):
-                st.code(f"""
-Streamlitバージョン: {streamlit_version}
-バージョン詳細: major={major}, minor={minor}, patch={patch}
-複数ファイル選択サポート: {support_multiple}
-accept_multipleパラメータ存在: {accept_multiple_exists}
-ログファイル: {log_file.absolute()}
-                """)
         except Exception as e:
             # エラーが発生した場合は安全のためFalse
             st.session_state.support_multiple_files = False
@@ -320,11 +401,15 @@ accept_multipleパラメータ存在: {accept_multiple_exists}
     # ライセンスチェック
     is_pro = license_manager.check_license()
     
-    if not is_pro:
-        st.warning("⚠️ 無料版: 月間100枚まで処理可能です。Pro版にアップグレードすると無制限で使用できます。")
+    # === 下段: 縦分割（左: 設定、右: メインコンテンツ）※左右ペインは独立スクロール ===
+    pane_container = st.container()
+    with pane_container:
+        st.markdown('<div class="scrollable-panes-marker"></div>', unsafe_allow_html=True)
+        left_col, right_col = st.columns([1, 3])
     
-    # サイドバー: 設定（常に表示）
-    with st.sidebar:
+    # 左カラム: 圧縮設定（上段に約3行分の余白）
+    with left_col:
+        st.markdown("<br><br><br>", unsafe_allow_html=True)
         st.header("⚙️ 圧縮設定")
         
         # プリセット選択（カスタムを最後に）
@@ -355,23 +440,37 @@ accept_multipleパラメータ存在: {accept_multiple_exists}
             settings.max_dimension = None
         settings.jpeg_quality = st.slider("JPEG品質", 20, 100, settings.jpeg_quality, key="jpeg_quality")
         settings.output_format = st.selectbox("出力形式", ["auto", "jpg", "png", "webp"], key="output_format")
-        settings.keep_exif = st.checkbox("EXIFメタデータを保持", value=settings.keep_exif, key="keep_exif")
+        
+        # EXIF保持: Web公開プリセットは削除固定、無料版はPro限定、Pro版のみ選択可
+        is_web_preset = PresetManager.is_web_publishing_preset(selected_preset)
+        if is_web_preset:
+            settings.keep_exif = False
+            st.caption("🔒 Web公開用のため、EXIFは削除されます（セキュリティ・個人情報保護の観点で変更不可）")
+        elif not is_pro:
+            settings.keep_exif = False
+            st.caption("🔒 EXIF保持はPro版限定機能です")
+        else:
+            settings.keep_exif = st.checkbox("EXIFメタデータを保持", value=settings.keep_exif, key="keep_exif")
         
         if settings.output_format == "webp":
             settings.webp_quality = st.slider("WebP品質", 0, 100, settings.webp_quality, key="webp_quality")
             settings.webp_lossless = st.checkbox("WebP可逆圧縮", value=settings.webp_lossless, key="webp_lossless")
         
-        # ファイル名変更オプション（設定に統合）
+        # ファイル名変更オプション（Pro版限定）
         st.divider()
         st.subheader("ファイル名設定")
-        # keyを指定することで、session_stateが自動的に管理される
-        st.checkbox(
-            "撮影日時に基づいてファイル名を変更", 
-            value=False,
-            key="rename_by_shoot_date",
-            help="EXIF情報の撮影日時を使用してファイル名を変更します（例: 20240126_143022.jpg）\n⚠️ 注意: EXIF情報がない画像では、この機能は適用されません。"
-        )
-        st.caption("⚠️ **注意**: EXIF情報がない画像では、ファイル名変更は適用されません。ログファイルに詳細が記録されます。")
+        if is_pro:
+            st.checkbox(
+                "撮影日時に基づいてファイル名を変更", 
+                value=st.session_state.get("rename_by_shoot_date", False),
+                key="rename_by_shoot_date",
+                help="EXIF情報の撮影日時を使用してファイル名を変更します（例: 20240126_143022.jpg）\n⚠️ 注意: EXIF情報がない画像では、この機能は適用されません。"
+            )
+            st.caption("⚠️ EXIF情報がない画像では、ファイル名変更は適用されません")
+        else:
+            st.caption("🔒 ファイル名変更はPro版限定機能です")
+            if "rename_by_shoot_date" not in st.session_state:
+                st.session_state.rename_by_shoot_date = False
         
         # 保存設定
         st.divider()
@@ -403,7 +502,7 @@ accept_multipleパラメータ存在: {accept_multiple_exists}
         else:
             st.info("📊 無料版")
             if st.button("Pro版にアップグレード"):
-                st.info("Pro版の購入については、GitHubのREADMEを参照してください。")
+                st.info("Pro版は準備中です。しばらくお待ちください。")
     
     # session_stateの初期化
     if "uploaded_files_list" not in st.session_state:
@@ -411,8 +510,9 @@ accept_multipleパラメータ存在: {accept_multiple_exists}
     if "file_info_dict" not in st.session_state:
         st.session_state.file_info_dict = {}
     
-    # メインコンテンツ
-    tab1, tab2, tab3 = st.tabs(["📁 画像処理", "📊 使い方", "ℹ️ 機能一覧"])
+    # 右カラム: メインコンテンツ（タブ）
+    with right_col:
+        tab1, tab2, tab3 = st.tabs(["📁 画像処理", "📊 使い方", "ℹ️ アプリ情報"])
     
     with tab1:
         # ステップ1: ファイル選択
@@ -605,10 +705,11 @@ accept_multipleパラメータ存在: {accept_multiple_exists}
             st.info("📎 画像ファイルを選択してください")
         
         if uploaded_files:
-            # 無料版の制限チェック
-            if not is_pro and len(uploaded_files) > 100:
-                st.error("❌ 無料版は100枚まで処理可能です。Pro版にアップグレードしてください。")
-                uploaded_files = uploaded_files[:100]
+            # 無料版の制限チェック（1回20枚まで）
+            limit = license_manager.FREE_LIMIT_PER_BATCH
+            if not is_pro and len(uploaded_files) > limit:
+                st.warning(f"⚠️ 無料版は1回{limit}枚までです。先頭{limit}枚のみ処理します。Pro版で無制限にご利用いただけます。")
+                uploaded_files = uploaded_files[:limit]
             
             st.divider()
             st.header("ステップ2: 設定確認")
@@ -822,37 +923,40 @@ accept_multipleパラメータ存在: {accept_multiple_exists}
                         width='stretch'
                     )
                     
-                    # レポートエクスポート
+                    # レポートエクスポート（Pro版限定）
                     col1, col2 = st.columns(2)
                     with col1:
-                        # CSVエクスポート
-                        csv_data = df.to_csv(index=False, encoding='utf-8-sig')
-                        st.download_button(
-                            label="📊 CSVレポートを保存",
-                            data=csv_data,
-                            file_name=f"compression_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                            mime="text/csv"
-                        )
-                    
+                        if is_pro:
+                            csv_data = df.to_csv(index=False, encoding='utf-8-sig')
+                            st.download_button(
+                                label="📊 CSVレポートを保存",
+                                data=csv_data,
+                                file_name=f"compression_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                                mime="text/csv"
+                            )
+                        else:
+                            st.caption("🔒 CSVレポートはPro版限定です")
                     with col2:
-                        # JSONエクスポート
-                        report_data = {
-                            "summary": {
-                                "total_files": len(results),
-                                "total_input_size": total_input_size,
-                                "total_output_size": total_output_size,
-                                "compression_ratio": compression_ratio,
-                                "processing_time": total_processing_time
-                            },
-                            "results": results
-                        }
-                        json_data = json.dumps(report_data, indent=2, ensure_ascii=False, default=str)
-                        st.download_button(
-                            label="📋 JSONレポートを保存",
-                            data=json_data,
-                            file_name=f"compression_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                            mime="application/json"
-                        )
+                        if is_pro:
+                            report_data = {
+                                "summary": {
+                                    "total_files": len(results),
+                                    "total_input_size": total_input_size,
+                                    "total_output_size": total_output_size,
+                                    "compression_ratio": compression_ratio,
+                                    "processing_time": total_processing_time
+                                },
+                                "results": results
+                            }
+                            json_data = json.dumps(report_data, indent=2, ensure_ascii=False, default=str)
+                            st.download_button(
+                                label="📋 JSONレポートを保存",
+                                data=json_data,
+                                file_name=f"compression_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                                mime="application/json"
+                            )
+                        else:
+                            st.caption("🔒 JSONレポートはPro版限定です")
                 
                 # ZIPファイルとして保存（ダウンロード）
                 if results:
@@ -972,6 +1076,25 @@ accept_multipleパラメータ存在: {accept_multiple_exists}
         - 個別にファイルを削除することも、すべてクリアすることも可能です
         - プレビューで最初の画像とEXIF情報を確認できます
         
+        ### EXIF（撮影情報）について
+        
+        EXIFには以下の点にご注意ください：
+        
+        - **🔒 セキュリティ**: GPS情報が含まれると撮影場所が特定されるリスクがあります。Web公開する画像ではEXIF削除を推奨します。
+        - **🔒 個人情報保護**: 撮影日時・カメラ機種・レンズ情報などが含まれます。不特定多数に公開する場合は削除を検討してください。
+        - **📦 ファイル容量**: EXIFを保持するとファイルサイズが増えます。容量を抑えたい場合は削除を選択してください。
+        
+        ※ ブログ用・SNS用・Web用・メール添付用・PNG透過保持のプリセットでは、セキュリティ・個人情報保護の観点からEXIF削除が固定されています。
+        
+        ### ファイル名変更について
+        
+        - **撮影日時に基づいてファイル名を変更**をONにすると、ダウンロード時のファイル名が撮影日時形式（`YYYYMMDD_HHMMSS`）に変わります
+        - 例: `IMG_1234.jpg` → `20240126_143022.jpg`（2024年1月26日 14:30:22 撮影の場合）
+        - 圧縮処理後、ZIPまたは個別ファイルをダウンロードする際に適用されます
+        - EXIF情報（撮影日時）がない画像は、元のファイル名のままです
+        - 同じ撮影日時の画像が複数ある場合は、`20240126_143022_001.jpg` のように連番が付きます
+        - **ダウンロードファイル名のプレフィックス**を設定すると、すべてのファイル名の先頭に指定した文字列が付きます（例: `compressed_` → `compressed_20240126_143022.jpg`）
+        
         ### プリセットについて
         
         - **PowerPoint用**: プレゼン資料に最適化
@@ -987,39 +1110,19 @@ accept_multipleパラメータ存在: {accept_multiple_exists}
         
         ### 無料版とPro版の違い
         
+        ※Pro版は準備中です。
+        
         | 機能 | 無料版 | Pro版 |
         |------|--------|-------|
-        | 月間処理枚数 | 100枚まで | 無制限 |
+        | 1回の処理枚数 | 20枚まで | 無制限 |
         | 基本圧縮 | ✅ | ✅ |
         | PNG/WebP | ✅ | ✅ |
         | リサイズ | ✅ | ✅ |
-        | EXIF保持 | ✅ | ✅ |
         | プリセット | ✅ | ✅ |
         | EXIF情報閲覧 | ✅ | ✅ |
-        | レポートエクスポート | ✅ | ✅ |
-        | ファイル名変更 | ✅ | ✅ |
-        
-        ### 機能一覧
-        
-        ✅ **基本機能**
-        - 画像一括圧縮（JPEG、PNG、HEIC、WebP対応）
-        - リサイズ機能（長辺ピクセル指定）
-        - EXIFメタデータ保持オプション
-        - プリセット機能
-        
-        ✅ **EXIF情報閲覧**
-        - 撮影日時、カメラ情報、撮影設定の表示
-        - ファイル情報（作成日時、更新日時、サイズ）
-        - GPS情報の表示（該当する場合）
-        
-        ✅ **レポート機能**
-        - CSV形式でのエクスポート
-        - JSON形式でのエクスポート
-        - 処理結果の詳細統計
-        
-        ✅ **ファイル名変更**
-        - 撮影日時に基づいたファイル名変更（ダウンロード時）
-        - 重複ファイル名の自動処理
+        | EXIF保持 | ❌ | ✅ |
+        | レポートエクスポート（CSV/JSON） | ❌ | ✅ |
+        | ファイル名変更 | ❌ | ✅ |
         
         ⚠️ **Web版の制限事項**
         - ファイルシステムへの直接アクセスは不可（セキュリティ上の理由）
@@ -1028,35 +1131,76 @@ accept_multipleパラメータ存在: {accept_multiple_exists}
         """)
     
     with tab3:
-        st.header("機能一覧")
+        from version import __version__, COPYRIGHT, HOMEPAGE, SUPPORT_EMAIL, FEEDBACK_FORM_URL as DEFAULT_FEEDBACK_URL, PICTCOMP_PAGE_URL
+        
+        st.header("アプリ情報")
+        
+        # バージョン
+        st.subheader("📌 バージョン")
+        st.markdown(f"**PictComp v{__version__}**")
+        
+        # 機能一覧
+        st.subheader("📌 機能一覧")
         st.markdown("""
-        ### GUI版と同等の機能
+        ✅ **基本機能**: 画像一括圧縮（JPEG、PNG、HEIC、WebP）、リサイズ、EXIFメタデータ保持オプション、プリセット
         
-        ✅ **基本機能**
-        - 画像一括圧縮（JPEG、PNG、HEIC、WebP対応）
-        - リサイズ機能（長辺ピクセル指定）
-        - EXIFメタデータ保持オプション
-        - プリセット機能
+        ✅ **EXIF情報閲覧**: 撮影日時、カメラ情報、GPS情報の表示
         
-        ✅ **EXIF情報閲覧**
-        - 撮影日時、カメラ情報、撮影設定の表示
-        - ファイル情報（作成日時、更新日時、サイズ）
-        - GPS情報の表示（該当する場合）
+        ✅ **レポート機能**: CSV/JSON形式でのエクスポート（Pro版）
         
-        ✅ **レポート機能**
-        - CSV形式でのエクスポート
-        - JSON形式でのエクスポート
-        - 処理結果の詳細統計
+        ✅ **ファイル名変更**: 撮影日時に基づいたファイル名変更（Pro版）
         
-        ✅ **ファイル名変更**
-        - 撮影日時に基づいたファイル名変更（ダウンロード時）
-        - 重複ファイル名の自動処理
-        
-        ⚠️ **Web版の制限事項**
-        - ファイルシステムへの直接アクセスは不可（セキュリティ上の理由）
-        - ファイル日時の更新機能はWeb版では利用不可
-        - フォルダ選択はファイルアップロードに置き換え
+        ⚠️ **Web版の制限**: フォルダ選択不可、ファイルアップロードに置き換え
         """)
+        
+        # クレジット
+        st.subheader("📌 クレジット")
+        st.markdown("""
+        - **Pillow** (PIL): 画像処理 - [BSD License](https://github.com/python-pillow/Pillow/blob/main/LICENSE)
+        - **pillow-heif**: HEIC形式対応 - [MIT License](https://github.com/bigcat88/pillow_heif/blob/main/LICENSE)
+        - **Streamlit**: Webアプリフレームワーク - [Apache 2.0](https://github.com/streamlit/streamlit/blob/develop/LICENSE)
+        - **pandas**: データ処理 - [BSD License](https://github.com/pandas-dev/pandas/blob/main/LICENSE)
+        """)
+        
+        # 法的文書・リンク
+        st.subheader("📌 法的文書・リンク")
+        pictcomp_url = os.environ.get("PICTCOMP_PAGE_URL") or PICTCOMP_PAGE_URL or ""
+        link_lines = [f"- **著作権**: {COPYRIGHT}"]
+        if pictcomp_url:
+            link_lines.insert(1, f"- **PictCompのページ**: [PictComp]({pictcomp_url})（新しいタブで開く）")
+        link_lines.extend([
+            f"- **ホームページ**: [Office Go Plan]({HOMEPAGE})（新しいタブで開く）",
+            f"- **お問い合わせ**: [{SUPPORT_EMAIL}](mailto:{SUPPORT_EMAIL})"
+        ])
+        st.markdown("\n".join(link_lines))
+        
+        # アンケート・要望フォーム
+        st.subheader("📌 ご要望・アンケート")
+        st.markdown("""
+        開発してほしい機能やご要望がありましたら、お気軽にお聞かせください。
+        お問い合わせ先までメールいただくか、下記のフォームからご送信ください。
+        """)
+        # アンケートフォームのURL（環境変数 > version.py の順で優先）
+        feedback_form_url = os.environ.get("PICTCOMP_FEEDBACK_FORM_URL") or DEFAULT_FEEDBACK_URL or ""
+        if feedback_form_url:
+            st.markdown(f"[📝 ご要望・アンケートフォームを開く]({feedback_form_url})")
+        else:
+            st.info("💡 アンケートフォームのURLが設定されていません。お問い合わせはメールでお願いします。")
+            st.markdown(f"**メール**: [{SUPPORT_EMAIL}](mailto:{SUPPORT_EMAIL}?subject=PictComp%20ご要望)")
+
+    # === フッター（ZipSearch参考: ライセンス情報・著作権・ホームページ・お問合せ） ===
+    if is_pro:
+        license_text = "Pro版 - 無制限"
+    else:
+        license_text = f"無料版 - 制限: 1回{license_manager.FREE_LIMIT_PER_BATCH}枚まで（Pro版は準備中）"
+    st.markdown(
+        f'<div class="pictcomp-footer">'
+        f'{license_text}<br>'
+        f'{COPYRIGHT} | <a href="{HOMEPAGE}" target="_blank">Office Go Plan</a> | '
+        f'<a href="mailto:{SUPPORT_EMAIL}">{SUPPORT_EMAIL}</a>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
 
 
 if __name__ == "__main__":

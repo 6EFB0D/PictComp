@@ -3,6 +3,7 @@
 画像圧縮アプリのメインGUI
 """
 import os
+import webbrowser
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import threading
@@ -10,6 +11,7 @@ from typing import List, Optional
 from datetime import datetime
 from image_compressor import ImageCompressor, CompressionSettings
 from config_manager import ConfigManager
+from license_manager import LicenseManager
 from presets import PresetManager
 import logging
 from PIL import Image, ImageTk
@@ -29,6 +31,7 @@ class PictCompGUI:
         
         # 設定管理
         self.config_manager = ConfigManager()
+        self.license_manager = LicenseManager()
         self.settings = self.config_manager.load_settings() or CompressionSettings()
         
         # 圧縮エンジン
@@ -47,6 +50,143 @@ class PictCompGUI:
         
         # 前回設定の読み込み
         self.load_last_settings()
+        
+        # メニューバー（Pro版準備中を表示）
+        self.create_menu()
+        
+        # 初回起動日を記録（14日間トライアル用）
+        self.license_manager.get_usage_data()
+        
+        # トライアル期限切れの場合は起動時に通知
+        self.root.after(100, self._check_trial_expired_on_startup)
+    
+    def create_menu(self):
+        """メニューバーを作成"""
+        menubar = tk.Menu(self.root)
+        self.root.config(menu=menubar)
+        
+        # ファイルメニュー
+        file_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="ファイル", menu=file_menu)
+        file_menu.add_command(label="閉じる", command=self._quit_app)
+        
+        # ヘルプメニュー
+        help_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="ヘルプ", menu=help_menu)
+        help_menu.add_command(label="使い方", command=self.show_usage_info)
+        # Pro版・ライセンス（サブメニュー）
+        license_menu = tk.Menu(help_menu, tearoff=0)
+        help_menu.add_cascade(label="Pro版・ライセンス", menu=license_menu)
+        license_menu.add_command(label="Pro版について", command=self._show_pro_info)
+        license_menu.add_command(label="Pro版を購入", command=self._show_pro_purchase)
+        license_menu.add_command(label="ライセンスキーを入力", command=self._show_license_input)
+        help_menu.add_separator()
+        help_menu.add_command(label="バージョン情報", command=self.show_version_info)
+        # サポート・お問い合わせ（サブメニュー）
+        support_menu = tk.Menu(help_menu, tearoff=0)
+        help_menu.add_cascade(label="サポート・お問い合わせ", menu=support_menu)
+        support_menu.add_command(label="PictCompのページ", command=self._open_pictcomp_page)
+        support_menu.add_command(label="お問い合わせ (support@office-goplan.com)", command=self._open_support_email)
+        support_menu.add_command(label="Office Go Plan（ホームページ）", command=self._open_homepage)
+        try:
+            from version import FEEDBACK_FORM_URL
+            feedback_url = os.environ.get("PICTCOMP_FEEDBACK_FORM_URL") or FEEDBACK_FORM_URL or ""
+            if feedback_url:
+                support_menu.add_separator()
+                support_menu.add_command(label="アンケート・要望を送信", command=lambda: webbrowser.open(feedback_url))
+        except ImportError:
+            pass
+    
+    def _quit_app(self):
+        """アプリを終了"""
+        self.root.destroy()
+    
+    def _show_pro_info(self):
+        """Pro版情報を表示"""
+        pro_text = """Pro版について
+
+【Pro版の機能】
+• 1回の処理枚数: 無制限
+• EXIF（撮影情報）の保持
+• レポートのエクスポート（CSV/JSON）
+• 撮影日時に基づくファイル名変更
+
+【プレリリース】初回起動から14日間は全機能を無料でお試しいただけます。
+
+Pro版の購入は現在準備中です。近日公開予定です。"""
+        messagebox.showinfo("Pro版について", pro_text)
+    
+    def _show_pro_purchase(self):
+        """Pro版購入情報を表示"""
+        messagebox.showinfo("Pro版を購入", "Pro版の購入は現在準備中です。\n近日公開予定です。")
+    
+    def _show_license_input(self):
+        """ライセンスキー入力ダイアログを表示"""
+        messagebox.showinfo(
+            "ライセンスキー入力",
+            "ライセンスキー入力機能は現在準備中です。\n\n"
+            "Pro版の購入とライセンスキー入力機能は近日公開予定です。\n"
+            "詳細は「Pro版について」メニューをご確認ください。"
+        )
+    
+    def _open_pictcomp_page(self):
+        """PictCompのページを開く"""
+        try:
+            from version import PICTCOMP_PAGE_URL
+            url = os.environ.get("PICTCOMP_PAGE_URL") or PICTCOMP_PAGE_URL or ""
+            if url:
+                webbrowser.open(url)
+            else:
+                messagebox.showinfo("PictCompのページ", "PictCompのページは準備中です。")
+        except ImportError:
+            messagebox.showinfo("PictCompのページ", "PictCompのページは準備中です。")
+    
+    def _open_support_email(self):
+        """お問い合わせ（メール）を開く"""
+        webbrowser.open("mailto:support@office-goplan.com")
+    
+    def _open_homepage(self):
+        """Office Go Plan ホームページを開く"""
+        from version import HOMEPAGE
+        webbrowser.open(HOMEPAGE)
+    
+    def show_usage_info(self):
+        """使い方（EXIFの注意・無料版とPro版の違い含む）を表示"""
+        usage_text = """【基本的な使い方】
+1. 入力フォルダ・出力フォルダを選択
+2. プリセットを選ぶか、圧縮設定を調整
+3. 「圧縮開始」で処理を実行
+
+【EXIF（撮影情報）について】
+以下の点にご注意ください：
+
+• セキュリティ: GPS情報が含まれると撮影場所が特定されるリスクがあります。Web公開する画像ではEXIF削除を推奨します。
+• 個人情報保護: 撮影日時・カメラ機種・レンズ情報などが含まれます。不特定多数に公開する場合は削除を検討してください。
+• ファイル容量: EXIFを保持するとファイルサイズが増えます。容量を抑えたい場合は削除を選択してください。
+
+※ ブログ用・SNS用・Web用・メール添付用・PNG透過保持のプリセットでは、セキュリティ・個人情報保護の観点からEXIF削除が固定されています。
+
+【プレリリース】初回起動から14日間は全機能を無料でお試しいただけます。
+
+【無料版とPro版の違い】※Pro版は準備中です。
+• 1回の処理枚数: 無料版 20枚まで / Pro版・トライアル 無制限
+• 基本圧縮・PNG/WebP・リサイズ・プリセット・EXIF情報閲覧: 両方 ✅
+• EXIF保持・レポートエクスポート・ファイル名変更: 無料版 ❌ / Pro版・トライアル ✅"""
+        messagebox.showinfo("使い方", usage_text)
+    
+    def show_version_info(self):
+        """バージョン情報を表示"""
+        from version import __version__, COPYRIGHT, HOMEPAGE, SUPPORT_EMAIL
+        info = self.license_manager.get_usage_info()
+        trial_text = ""
+        if info.get("is_trial"):
+            trial_text = f"\n\nプレリリース: トライアル残り {info.get('remaining_trial_days', 0)} 日"
+        elif not info.get("is_pro"):
+            trial_text = "\n\nトライアル期間は終了しました。"
+        messagebox.showinfo(
+            "バージョン情報",
+            f"PictComp v{__version__}\n\n{COPYRIGHT}\n\nホームページ:\n{HOMEPAGE}\n\nお問合せ先:\n{SUPPORT_EMAIL}{trial_text}\n\nPro版は準備中です。"
+        )
     
     def setup_logging(self):
         """ログ設定"""
@@ -61,58 +201,67 @@ class PictCompGUI:
     
     def create_widgets(self):
         """ウィジェットを作成"""
-        # スクロール可能なキャンバス
-        canvas_frame = ttk.Frame(self.root)
-        canvas_frame.pack(fill=tk.BOTH, expand=True)
+        # ヘッダー（ロゴとアプリ名を左上に配置）
+        header_frame = ttk.Frame(self.root, padding="10 5")
+        header_frame.pack(fill=tk.X)
         
-        canvas = tk.Canvas(canvas_frame)
-        scrollbar = ttk.Scrollbar(canvas_frame, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas)
+        logo_path = os.path.join(os.path.dirname(__file__), "assets", "icon", "pictcomp_bright.jpg")
+        if os.path.exists(logo_path):
+            try:
+                logo_img = Image.open(logo_path)
+                logo_img.thumbnail((84, 56), Image.Resampling.LANCZOS)
+                self.logo_photo = ImageTk.PhotoImage(logo_img)
+                ttk.Label(header_frame, image=self.logo_photo).pack(side=tk.LEFT, padx=(0, 15))
+            except Exception:
+                pass
+        ttk.Label(header_frame, text="PictComp - 画像一括圧縮アプリ", font=("", 14, "bold")).pack(side=tk.LEFT)
         
-        def configure_scroll_region(event=None):
-            canvas.configure(scrollregion=canvas.bbox("all"))
+        # 区切り線
+        ttk.Separator(self.root, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(0, 5))
         
-        scrollable_frame.bind("<Configure>", configure_scroll_region)
+        # === 下段: 縦分割（左: 設定、右: フォルダ・ファイル操作） ===
+        paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
+        paned.pack(fill=tk.BOTH, expand=True)
         
-        canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        # 左ペイン: プリセット・圧縮設定（スクロール可能）
+        left_outer = ttk.Frame(paned, padding="5")
+        paned.add(left_outer, weight=1)
         
-        def configure_canvas_width(event):
-            canvas_width = event.width
-            canvas.itemconfig(canvas_window, width=canvas_width)
+        left_scrollbar = ttk.Scrollbar(left_outer)
+        left_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        canvas.bind("<Configure>", configure_canvas_width)
-        canvas.configure(yscrollcommand=scrollbar.set)
+        left_canvas = tk.Canvas(left_outer, yscrollcommand=left_scrollbar.set, highlightthickness=0)
+        left_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        left_scrollbar.config(command=left_canvas.yview)
         
-        # マウスホイールでスクロール
-        def on_mousewheel(event):
-            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        left_frame = ttk.Frame(left_canvas, padding="10")
+        left_canvas_window = left_canvas.create_window((0, 0), window=left_frame, anchor="nw")
         
-        canvas.bind_all("<MouseWheel>", on_mousewheel)
+        def _on_left_frame_configure(event):
+            left_canvas.configure(scrollregion=left_canvas.bbox("all"))
+        def _on_left_canvas_configure(event):
+            left_canvas.itemconfig(left_canvas_window, width=event.width)
+        left_frame.bind("<Configure>", _on_left_frame_configure)
+        left_canvas.bind("<Configure>", _on_left_canvas_configure)
         
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+        def _on_mousewheel_left(event):
+            if event.num == 5 or (hasattr(event, "delta") and event.delta < 0):
+                left_canvas.yview_scroll(1, "units")   # 下へ
+            elif event.num == 4 or (hasattr(event, "delta") and event.delta > 0):
+                left_canvas.yview_scroll(-1, "units")  # 上へ
+        left_canvas.bind("<MouseWheel>", _on_mousewheel_left)  # Windows
+        left_canvas.bind("<Button-4>", _on_mousewheel_left)    # Linux
+        left_canvas.bind("<Button-5>", _on_mousewheel_left)   # Linux
         
-        # メインフレーム
-        main_frame = scrollable_frame
-        main_frame.configure(padding="10")
+        # 右ペイン: フォルダ・ファイル一覧・ボタン
+        right_frame = ttk.Frame(paned, padding="10")
+        paned.add(right_frame, weight=2)
+        right_frame.columnconfigure(0, weight=1)
+        right_frame.rowconfigure(2, weight=1)  # ファイル一覧が伸縮
         
-        # フォルダ選択セクション
-        folder_frame = ttk.LabelFrame(main_frame, text="フォルダ選択", padding="10")
-        folder_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
-        
-        # 入力フォルダ
-        ttk.Label(folder_frame, text="入力フォルダ:").grid(row=0, column=0, sticky=tk.W, pady=5)
-        ttk.Entry(folder_frame, textvariable=self.input_folder, width=50).grid(row=0, column=1, padx=5)
-        ttk.Button(folder_frame, text="参照", command=self.select_input_folder).grid(row=0, column=2, padx=5)
-        
-        # 出力フォルダ
-        ttk.Label(folder_frame, text="出力フォルダ:").grid(row=1, column=0, sticky=tk.W, pady=5)
-        ttk.Entry(folder_frame, textvariable=self.output_folder, width=50).grid(row=1, column=1, padx=5)
-        ttk.Button(folder_frame, text="参照", command=self.select_output_folder).grid(row=1, column=2, padx=5)
-        
-        # プリセットセクション
-        preset_frame = ttk.LabelFrame(main_frame, text="プリセット", padding="10")
-        preset_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+        # 左: プリセットセクション
+        preset_frame = ttk.LabelFrame(left_frame, text="プリセット", padding="8")
+        preset_frame.pack(fill=tk.X, pady=3)
         preset_frame.columnconfigure(1, weight=1)
         
         ttk.Label(preset_frame, text="プリセット:").grid(row=0, column=0, sticky=tk.W, padx=5)
@@ -129,32 +278,33 @@ class PictCompGUI:
         # 設定変更時にカスタムに自動切り替えするためのフラグ
         self.preset_locked = False
         
-        # 設定セクション
-        settings_frame = ttk.LabelFrame(main_frame, text="圧縮設定", padding="10")
-        settings_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+        # 左: 設定セクション
+        settings_frame = ttk.LabelFrame(left_frame, text="圧縮設定", padding="8")
+        settings_frame.pack(fill=tk.X, pady=3)
         settings_frame.columnconfigure(1, weight=1)
         
         # 設定変更時にカスタムに自動切り替えする関数
         def switch_to_custom(*args):
             if not self.preset_locked and self.preset_var.get() != "カスタム":
                 self.preset_var.set("カスタム")
+                self._update_exif_checkbox_state()
         
         # 目標ファイルサイズ
-        ttk.Label(settings_frame, text="目標サイズ (KB):").grid(row=0, column=0, sticky=tk.W, pady=5)
+        ttk.Label(settings_frame, text="目標サイズ (KB):").grid(row=0, column=0, sticky=tk.W, pady=3)
         self.target_size_var = tk.IntVar(value=self.settings.target_size_kb)
         target_spinbox = ttk.Spinbox(settings_frame, from_=50, to=2000, textvariable=self.target_size_var, width=10)
         target_spinbox.grid(row=0, column=1, sticky=tk.W, padx=5)
         self.target_size_var.trace("w", lambda *args: (setattr(self.settings, "target_size_kb", self.target_size_var.get()), switch_to_custom()))
         
         # リサイズ設定
-        ttk.Label(settings_frame, text="最大サイズ (長辺px, 0=リサイズなし):").grid(row=1, column=0, sticky=tk.W, pady=5)
+        ttk.Label(settings_frame, text="最大サイズ (長辺px, 0=リサイズなし):").grid(row=1, column=0, sticky=tk.W, pady=3)
         self.max_dim_var = tk.StringVar(value=str(self.settings.max_dimension) if self.settings.max_dimension else "0")
         max_dim_spinbox = ttk.Spinbox(settings_frame, from_=0, to=10000, textvariable=self.max_dim_var, width=10)
         max_dim_spinbox.grid(row=1, column=1, sticky=tk.W, padx=5)
         self.max_dim_var.trace("w", lambda *args: (setattr(self.settings, "max_dimension", int(self.max_dim_var.get()) if self.max_dim_var.get() != "0" else None), switch_to_custom()))
         
         # JPEG品質
-        ttk.Label(settings_frame, text="JPEG品質:").grid(row=2, column=0, sticky=tk.W, pady=5)
+        ttk.Label(settings_frame, text="JPEG品質:").grid(row=2, column=0, sticky=tk.W, pady=3)
         self.jpeg_quality_var = tk.IntVar(value=self.settings.jpeg_quality)
         quality_scale = ttk.Scale(settings_frame, from_=20, to=100, variable=self.jpeg_quality_var, orient=tk.HORIZONTAL, length=250)
         quality_scale.grid(row=2, column=1, sticky=(tk.W, tk.E), padx=5)
@@ -163,20 +313,22 @@ class PictCompGUI:
         self.jpeg_quality_var.trace("w", lambda *args: (setattr(self.settings, "jpeg_quality", self.jpeg_quality_var.get()), self.quality_label.config(text=str(self.jpeg_quality_var.get())), switch_to_custom()))
         
         # 出力形式
-        ttk.Label(settings_frame, text="出力形式:").grid(row=3, column=0, sticky=tk.W, pady=5)
+        ttk.Label(settings_frame, text="出力形式:").grid(row=3, column=0, sticky=tk.W, pady=3)
         self.output_format_var = tk.StringVar(value=self.settings.output_format)
         format_combo = ttk.Combobox(settings_frame, textvariable=self.output_format_var, values=["auto", "jpg", "png", "webp"], state="readonly", width=10)
         format_combo.grid(row=3, column=1, sticky=tk.W, padx=5)
         format_combo.bind("<<ComboboxSelected>>", lambda e: (setattr(self.settings, "output_format", self.output_format_var.get()), switch_to_custom()))
         
-        # EXIF保持
+        # 撮影情報の保持（Pro版限定、Web公開プリセット時は削除固定）
         self.exif_var = tk.BooleanVar(value=self.settings.keep_exif)
-        ttk.Checkbutton(settings_frame, text="EXIFメタデータを保持", variable=self.exif_var).grid(row=4, column=0, columnspan=2, sticky=tk.W, pady=5)
+        self.exif_checkbtn = ttk.Checkbutton(settings_frame, text="撮影情報を残す（日付・カメラ情報など）", variable=self.exif_var)
+        self.exif_checkbtn.grid(row=4, column=0, columnspan=2, sticky=tk.W, pady=3)
         self.exif_var.trace("w", lambda *args: (setattr(self.settings, "keep_exif", self.exif_var.get()), switch_to_custom()))
+        self._exif_label_text = "撮影情報を残す（日付・カメラ情報など）"
         
         # WebP設定
         webp_frame = ttk.Frame(settings_frame)
-        webp_frame.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
+        webp_frame.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=3)
         webp_frame.columnconfigure(1, weight=1)
         
         ttk.Label(webp_frame, text="WebP品質:").grid(row=0, column=0, sticky=tk.W)
@@ -208,9 +360,25 @@ class PictCompGUI:
             finally:
                 self.preset_locked = False
         
-        # ファイル一覧
-        list_frame = ttk.LabelFrame(main_frame, text="対象ファイル（Ctrl+クリックで複数選択可）", padding="10")
-        list_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+        # EXIFチェックボックスの状態を更新（Web公開プリセット・Pro版に応じて）
+        self._update_exif_checkbox_state()
+        
+        # 右: フォルダ選択セクション
+        folder_frame = ttk.LabelFrame(right_frame, text="フォルダ選択", padding="10")
+        folder_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=5)
+        
+        ttk.Label(folder_frame, text="入力フォルダ:").grid(row=0, column=0, sticky=tk.W, pady=5)
+        ttk.Entry(folder_frame, textvariable=self.input_folder, width=40).grid(row=0, column=1, padx=5)
+        ttk.Button(folder_frame, text="参照", command=self.select_input_folder).grid(row=0, column=2, padx=5)
+        
+        ttk.Label(folder_frame, text="出力フォルダ:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        ttk.Entry(folder_frame, textvariable=self.output_folder, width=40).grid(row=1, column=1, padx=5)
+        ttk.Button(folder_frame, text="参照", command=self.select_output_folder).grid(row=1, column=2, padx=5)
+        folder_frame.columnconfigure(1, weight=1)
+        
+        # 右: ファイル一覧
+        list_frame = ttk.LabelFrame(right_frame, text="対象ファイル（Ctrl+クリックで複数選択可）", padding="10")
+        list_frame.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
         list_frame.columnconfigure(0, weight=1)
         list_frame.rowconfigure(0, weight=1)
         
@@ -222,35 +390,110 @@ class PictCompGUI:
         self.file_listbox.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         list_scrollbar.config(command=self.file_listbox.yview)
         
-        # ダブルクリックでEXIF情報を表示
+        # ダブルクリックで撮影情報を表示
         self.file_listbox.bind("<Double-Button-1>", self.show_exif_info)
         
-        # プログレスバー
-        progress_frame = ttk.Frame(main_frame)
-        progress_frame.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+        # 右: プログレスバー
+        progress_frame = ttk.Frame(right_frame)
+        progress_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=5)
         
         self.progress_var = tk.StringVar(value="待機中")
         ttk.Label(progress_frame, textvariable=self.progress_var).pack()
         self.progress_bar = ttk.Progressbar(progress_frame, mode="determinate")
         self.progress_bar.pack(fill=tk.X, pady=5)
         
-        # ボタン
-        button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=5, column=0, columnspan=2, pady=10)
+        # 右: ボタン（2行に分けて見切れ防止）
+        button_frame = ttk.Frame(right_frame)
+        button_frame.grid(row=4, column=0, pady=10)
+        button_frame.columnconfigure(0, weight=1)
         
-        ttk.Button(button_frame, text="ファイル一覧を更新", command=self.update_file_list).pack(side=tk.LEFT, padx=5)
-        self.start_button = ttk.Button(button_frame, text="圧縮開始", command=self.start_compression)
-        self.start_button.pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="設定を保存", command=self.save_settings).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="レポートをエクスポート", command=self.export_report).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="EXIF情報を表示", command=self.show_exif_info_from_selection).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="画像ビューアを開く", command=self.open_image_viewer).pack(side=tk.LEFT, padx=5)
+        btn_row1 = ttk.Frame(button_frame)
+        btn_row1.pack(fill=tk.X, pady=2)
+        ttk.Button(btn_row1, text="ファイル一覧を更新", command=self.update_file_list).pack(side=tk.LEFT, padx=3)
+        self.start_button = ttk.Button(btn_row1, text="圧縮開始", command=self.start_compression)
+        self.start_button.pack(side=tk.LEFT, padx=3)
+        ttk.Button(btn_row1, text="設定を保存", command=self.save_settings).pack(side=tk.LEFT, padx=3)
+        
+        btn_row2 = ttk.Frame(button_frame)
+        btn_row2.pack(fill=tk.X, pady=2)
+        self.export_report_btn = ttk.Button(btn_row2, text="レポートをエクスポート", command=self._export_report_or_show_pro_limit)
+        self.export_report_btn.pack(side=tk.LEFT, padx=3)
+        ttk.Button(btn_row2, text="撮影情報を表示", command=self.show_exif_info_from_selection).pack(side=tk.LEFT, padx=3)
+        ttk.Button(btn_row2, text="画像ビューアを開く", command=self.open_image_viewer).pack(side=tk.LEFT, padx=3)
         
         # 処理結果を保存する変数
         self.last_processing_results = []
         
         # 画像ビューア
         self.image_viewer = None
+        
+        # Pro版制限に応じてレポートボタンの状態を更新
+        self._update_export_report_button_state()
+        
+        # ステータスバー（トライアル残り日数など）
+        status_frame = ttk.Frame(self.root, padding="5 3")
+        self.status_label = ttk.Label(status_frame, text="", font=("", 9))
+        self.status_label.pack(side=tk.LEFT)
+        self._update_status_bar()
+        status_frame.pack(fill=tk.X, side=tk.BOTTOM)
+        ttk.Separator(self.root, orient=tk.HORIZONTAL).pack(fill=tk.X, side=tk.BOTTOM)
+    
+    def _update_status_bar(self):
+        """ステータスバーにトライアル情報を表示"""
+        info = self.license_manager.get_usage_info()
+        if info.get("is_trial"):
+            days = info.get("remaining_trial_days", 0)
+            end_date = info.get("trial_end_date", "")
+            self.status_label.config(text=f"プレリリース: トライアル残り {days} 日（期限: {end_date}）")
+        elif info.get("is_pro"):
+            self.status_label.config(text="Pro版")
+        else:
+            self.status_label.config(text=f"無料版（1回{info.get('per_batch_limit', 20)}枚まで）")
+    
+    def _check_trial_expired_on_startup(self):
+        """起動時にトライアル期限切れをチェックして通知"""
+        if not self.license_manager.is_trial_active() and self.license_manager.get_usage_data().get("license_type") != "pro":
+            messagebox.showinfo(
+                "トライアル期間終了",
+                "14日間のプレリリーストライアル期間が終了しました。\n\n"
+                "引き続きご利用いただくには、無料版としてご利用ください（1回20枚まで）。\n"
+                "Pro版（無制限・EXIF保持・レポート）は準備中です。"
+            )
+    
+    def _update_exif_checkbox_state(self):
+        """EXIFチェックボックスの有効/無効をプリセットとPro版に応じて更新"""
+        preset_name = self.preset_var.get()
+        is_pro = self.license_manager.check_license()
+        is_web_preset = PresetManager.is_web_publishing_preset(preset_name)
+        
+        if is_web_preset:
+            # Web公開プリセット: EXIF削除固定
+            self.exif_var.set(False)
+            self.settings.keep_exif = False
+            self.exif_checkbtn.config(state="disabled", text=f"{self._exif_label_text}（Web公開用のため削除固定）")
+        elif not is_pro:
+            # 無料版: Pro版限定（EXIF削除に固定）
+            self.exif_var.set(False)
+            self.settings.keep_exif = False
+            self.exif_checkbtn.config(state="disabled", text=f"{self._exif_label_text}（Pro版限定）")
+        else:
+            # Pro版かつ非Webプリセット: 通常選択可
+            self.exif_checkbtn.config(state="normal", text=self._exif_label_text)
+    
+    def _update_export_report_button_state(self):
+        """レポートエクスポートボタンの有効/無効をPro版に応じて更新"""
+        is_pro = self.license_manager.check_license()
+        if not is_pro:
+            self.export_report_btn.config(state="disabled", text="レポートをエクスポート（Pro版限定）")
+        else:
+            self.export_report_btn.config(state="normal", text="レポートをエクスポート")
+    
+    def _export_report_or_show_pro_limit(self):
+        """レポートエクスポート（Pro版のみ）"""
+        if not self.license_manager.check_license():
+            messagebox.showinfo("Pro版限定", "レポートのエクスポート（CSV/JSON）はPro版の機能です。")
+            return
+        self.export_report()
     
     def select_input_folder(self):
         """入力フォルダを選択"""
@@ -307,6 +550,7 @@ class PictCompGUI:
         preset_name = event.widget.get()
         if preset_name == "カスタム":
             self.preset_locked = False
+            self._update_exif_checkbox_state()
             return
         
         try:
@@ -321,11 +565,16 @@ class PictCompGUI:
             self.max_dim_var.set(str(preset_settings.max_dimension) if preset_settings.max_dimension else "0")
             self.jpeg_quality_var.set(preset_settings.jpeg_quality)
             self.output_format_var.set(preset_settings.output_format)
+            # Web公開プリセットの場合はEXIF削除を強制
+            if PresetManager.is_web_publishing_preset(preset_name):
+                preset_settings.keep_exif = False
+                self.settings.keep_exif = False
             self.exif_var.set(preset_settings.keep_exif)
             self.webp_quality_var.set(preset_settings.webp_quality)
             self.webp_lossless_var.set(preset_settings.webp_lossless)
             self.quality_label.config(text=str(preset_settings.jpeg_quality))
             
+            self._update_exif_checkbox_state()
             self.preset_locked = False  # ロック解除
         except Exception as e:
             self.preset_locked = False
@@ -555,7 +804,7 @@ class PictCompGUI:
     def show_exif_info_window(self, file_path: str, filename: str):
         """EXIF情報表示ウィンドウを開く（表形式）"""
         exif_window = tk.Toplevel(self.root)
-        exif_window.title(f"EXIF情報 - {filename}")
+        exif_window.title(f"撮影情報 - {filename}")
         exif_window.geometry("800x550")
         
         # EXIFデータを取得
@@ -569,17 +818,19 @@ class PictCompGUI:
             if "error" in exif_data:
                 ttk.Label(main_frame, text=f"エラー: {exif_data['error']}", foreground="red").pack(pady=10)
             else:
-                ttk.Label(main_frame, text="⚠️ この画像にはEXIF情報が含まれていません。", foreground="orange").pack(pady=10)
+                ttk.Label(main_frame, text="⚠️ この画像には撮影情報が含まれていません。", foreground="orange").pack(pady=10)
             
-            # EXIF情報がない場合の説明
-            info_frame = ttk.LabelFrame(main_frame, text="EXIF情報がない場合の影響", padding="10")
+            # 撮影情報がない場合の説明
+            info_frame = ttk.LabelFrame(main_frame, text="撮影情報とは？", padding="10")
             info_frame.pack(fill=tk.X, padx=10, pady=10)
             
-            info_text = """• ファイル名変更機能（撮影日時に基づく）は使用できません
-• ファイル日時更新機能は使用できません
-• EXIF情報の表示はできません
+            info_text = """カメラが記録したデータ（撮影日時・カメラ機種など）です。
+スクショや編集済み画像には含まれないことがあります。
 
-ログファイルに詳細が記録されます。"""
+使えない機能：
+• 撮影日時でのファイル名変更
+• ファイル日時の更新
+• 撮影情報の表示"""
             ttk.Label(info_frame, text=info_text, justify=tk.LEFT).pack(anchor=tk.W)
             
             # ログに記録
@@ -653,7 +904,7 @@ class PictCompGUI:
             text = "\n".join(f"{tag}: {value}" for tag, value in all_data)
             exif_window.clipboard_clear()
             exif_window.clipboard_append(text)
-            messagebox.showinfo("コピー", "EXIF情報をクリップボードにコピーしました")
+            messagebox.showinfo("コピー", "撮影情報をクリップボードにコピーしました")
         
         # ファイル日時更新機能
         def update_file_date():
@@ -787,7 +1038,12 @@ class PictCompGUI:
                     messagebox.showerror("エラー", f"ファイル名の変更に失敗しました:\n{str(e)}")
         
         ttk.Button(button_frame, text="撮影日時に合わせてファイル日時を更新", command=update_file_date).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="撮影日時に合わせてファイル名を変更", command=rename_file_by_shoot_date).pack(side=tk.LEFT, padx=5)
+        def rename_or_show_pro_limit():
+            if not self.license_manager.check_license():
+                messagebox.showinfo("Pro版限定", "撮影日時に基づくファイル名変更はPro版の機能です。")
+                return
+            rename_file_by_shoot_date()
+        ttk.Button(button_frame, text="撮影日時に合わせてファイル名を変更", command=rename_or_show_pro_limit).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="クリップボードにコピー", command=copy_to_clipboard).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="閉じる", command=exif_window.destroy).pack(side=tk.LEFT, padx=5)
     
@@ -856,6 +1112,17 @@ class PictCompGUI:
             if total_files == 0:
                 self.root.after(0, lambda: messagebox.showwarning("警告", "処理対象のファイルがありません"))
                 return
+            
+            # 無料版の制限チェック（1回20枚まで）
+            limit = self.license_manager.FREE_LIMIT_PER_BATCH
+            is_pro = self.license_manager.check_license()
+            if not is_pro and total_files > limit:
+                self.root.after(0, lambda: messagebox.showwarning(
+                    "無料版の制限",
+                    f"無料版は1回{limit}枚までです。\n先頭{limit}枚のみ処理します。\nPro版で無制限にご利用いただけます。"
+                ))
+                files = files[:limit]
+                total_files = len(files)
             
             # プログレスバー設定
             self.root.after(0, lambda: self.progress_bar.config(maximum=total_files))

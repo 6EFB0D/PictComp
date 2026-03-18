@@ -35,8 +35,12 @@ env/
 *.log
 streamlit_debug.log
 
-# Config (user-specific, optional - 必要に応じて除外)
-# ~/.pictcomp/
+# Config (user-specific)
+.pictcomp/
+
+# Packaging
+*.manifest
+*.spec
 
 # OS
 .DS_Store

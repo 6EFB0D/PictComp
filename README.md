@@ -84,13 +84,13 @@ python gui_main.py
   - `python -m streamlit run app_streamlit.py` を試してください
   - 仮想環境を使用している場合は、仮想環境が有効になっているか確認
 
-### コマンドライン版（旧版）
+### コマンドライン版（旧版・Legacy）
 
 ```bash
-python PictComp.py
+python legacy/pictcomp_legacy.py
 ```
 
-フォルダ選択ダイアログが表示されるので、入力フォルダと出力フォルダを選択してください。
+フォルダ選択ダイアログが表示されるので、入力フォルダと出力フォルダを選択してください。新規利用は GUI版 または Web版 を推奨します。
 
 ## 設定オプション
 
@@ -131,7 +131,6 @@ python PictComp.py
 
 ```
 PictComp/
-├── PictComp.py              # 旧版コマンドラインアプリ
 ├── gui_main.py              # GUI版メインアプリ（推奨）
 ├── app_streamlit.py         # Web版アプリ（Streamlit）
 ├── image_compressor.py      # 圧縮エンジン
@@ -140,8 +139,18 @@ PictComp/
 ├── exif_viewer.py           # EXIF情報閲覧
 ├── image_viewer.py          # 画像ビューア
 ├── license_manager.py       # ライセンス管理
+├── version.py               # バージョン情報
 ├── requirements.txt         # 依存関係
-└── README.md                # このファイル
+├── pyproject.toml           # プロジェクトメタデータ
+├── CHANGELOG.md             # 変更履歴
+├── legacy/                  # 旧版（v1.x）
+│   ├── pictcomp_legacy.py   # コマンドライン版
+│   └── README.md
+├── tests/                   # ユニットテスト
+│   └── test_image_compressor.py
+├── docs/                    # ドキュメント
+│   └── GIT_SETUP.md
+└── README.md
 ```
 
 ## ログファイル
@@ -168,7 +177,14 @@ brew install libheif
 
 大量の画像を処理する場合、メモリ不足になることがあります。その場合は、一度に処理するファイル数を減らすか、バッチ処理に分割してください。
 
+## 連絡先
+
+- **ホームページ**: [Office Go Plan](https://6EFB0D.github.io/office-goplan/)
+- **お問合せ先**: support@office-goplan.com
+
 ## ライセンス
+
+© 2026 Office Go Plan
 
 このプロジェクトはMITライセンスの下で公開されています。
 
@@ -178,14 +194,4 @@ brew install libheif
 
 ## 更新履歴
 
-### v2.0.0
-- GUI版を追加
-- PNG、WebP形式に対応
-- リサイズ機能を追加
-- プリセット機能を追加
-- プレビュー機能を追加
-- EXIF保持オプションを追加
-
-### v1.0.0
-- 初回リリース
-- JPEG/HEIC形式の圧縮に対応
+詳細は [CHANGELOG.md](CHANGELOG.md) を参照してください。

@@ -211,7 +211,7 @@ class ImageViewer:
         nav_frame.pack(pady=5)
         
         ttk.Button(nav_frame, text="前へ", command=self.prev_image).pack(side=tk.LEFT, padx=5)
-        ttk.Button(nav_frame, text="EXIF情報", command=self.show_exif_info).pack(side=tk.LEFT, padx=5)
+        ttk.Button(nav_frame, text="撮影情報", command=self.show_exif_info).pack(side=tk.LEFT, padx=5)
         ttk.Button(nav_frame, text="次へ", command=self.next_image).pack(side=tk.LEFT, padx=5)
         
         # ファイル一覧を更新
@@ -409,7 +409,7 @@ class ImageViewer:
     def show_exif_info_simple(self, file_path: str, filename: str):
         """EXIF情報を簡易表示"""
         exif_window = tk.Toplevel(self.viewer_window)
-        exif_window.title(f"EXIF情報 - {filename}")
+        exif_window.title(f"撮影情報 - {filename}")
         exif_window.geometry("800x550")
         
         exif_data = ExifViewer.get_exif_data(file_path)
@@ -421,7 +421,7 @@ class ImageViewer:
             if "error" in exif_data:
                 ttk.Label(main_frame, text=f"エラー: {exif_data['error']}", foreground="red").pack(pady=20)
             else:
-                ttk.Label(main_frame, text="この画像にはEXIF情報が含まれていません。", foreground="gray").pack(pady=20)
+                ttk.Label(main_frame, text="この画像には撮影情報が含まれていません。", foreground="gray").pack(pady=20)
             ttk.Button(main_frame, text="閉じる", command=exif_window.destroy).pack(pady=10)
             return
         

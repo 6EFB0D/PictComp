@@ -19,31 +19,38 @@ class LicenseManager:
         self.full_path = os.path.join(self.config_dir, license_file)
         os.makedirs(self.config_dir, exist_ok=True)
         
-        # 無料版の制限
-        self.FREE_LIMIT_MONTHLY = 100  # 月間100枚まで
+        # 無料版の制限（1回の処理あたり）
+        self.FREE_LIMIT_PER_BATCH = 20  # 1回20枚まで
+        
+        # プレリリース: 14日間トライアル
+        self.TRIAL_DAYS = 14
     
     def get_usage_data(self) -> Dict:
         """使用状況データを取得"""
+        default_data = {
+            "license_type": "free",
+            "license_key": None,
+            "monthly_count": 0,
+            "last_reset_date": datetime.now().strftime("%Y-%m-%d"),
+            "total_processed": 0,
+            "first_launch_date": None,
+        }
+        
         if not os.path.exists(self.full_path):
-            return {
-                "license_type": "free",
-                "license_key": None,
-                "monthly_count": 0,
-                "last_reset_date": datetime.now().strftime("%Y-%m-%d"),
-                "total_processed": 0
-            }
+            data = default_data.copy()
+            data["first_launch_date"] = datetime.now().strftime("%Y-%m-%d")
+            self.save_usage_data(data)
+            return data
         
         try:
             with open(self.full_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
+            if "first_launch_date" not in data:
+                data["first_launch_date"] = datetime.now().strftime("%Y-%m-%d")
+                self.save_usage_data(data)
             return data
         except Exception:
-            return {
-                "license_type": "free",
-                "monthly_count": 0,
-                "last_reset_date": datetime.now().strftime("%Y-%m-%d"),
-                "total_processed": 0
-            }
+            return default_data.copy()
     
     def save_usage_data(self, data: Dict):
         """使用状況データを保存"""
@@ -55,15 +62,56 @@ class LicenseManager:
             print(f"ライセンス保存エラー: {e}")
             return False
     
+    def is_trial_active(self) -> bool:
+        """14日間トライアルが有効かどうか"""
+        data = self.get_usage_data()
+        first_launch = data.get("first_launch_date")
+        if not first_launch:
+            return True  # 未記録の場合はトライアル有効とする
+        try:
+            launch_dt = datetime.strptime(first_launch, "%Y-%m-%d")
+            elapsed = (datetime.now() - launch_dt).days
+            return elapsed < self.TRIAL_DAYS
+        except Exception:
+            return True
+    
+    def get_remaining_trial_days(self) -> int:
+        """トライアル残り日数を取得（0=期限切れ）"""
+        data = self.get_usage_data()
+        first_launch = data.get("first_launch_date")
+        if not first_launch:
+            return self.TRIAL_DAYS
+        try:
+            launch_dt = datetime.strptime(first_launch, "%Y-%m-%d")
+            elapsed = (datetime.now() - launch_dt).days
+            return max(0, self.TRIAL_DAYS - elapsed)
+        except Exception:
+            return self.TRIAL_DAYS
+    
+    def trial_end_date(self) -> Optional[str]:
+        """トライアル終了日を取得"""
+        data = self.get_usage_data()
+        first_launch = data.get("first_launch_date")
+        if not first_launch:
+            return None
+        try:
+            launch_dt = datetime.strptime(first_launch, "%Y-%m-%d")
+            end_dt = launch_dt + timedelta(days=self.TRIAL_DAYS)
+            return end_dt.strftime("%Y-%m-%d")
+        except Exception:
+            return None
+    
     def check_license(self) -> bool:
-        """ライセンスをチェック（Pro版かどうか）"""
+        """ライセンスをチェック（Pro版または14日間トライアル中かどうか）"""
         data = self.get_usage_data()
         
         if data.get("license_type") == "pro":
-            # ライセンスキーの検証（簡易版）
             license_key = data.get("license_key")
             if license_key and self.validate_license_key(license_key):
                 return True
+        
+        if self.is_trial_active():
+            return True
         
         return False
     
@@ -81,33 +129,18 @@ class LicenseManager:
         return True
     
     def can_process(self, file_count: int) -> tuple[bool, Optional[str]]:
-        """処理可能かチェック"""
+        """処理可能かチェック（1回の処理枚数）"""
         if self.check_license():
             return True, None  # Pro版は無制限
         
-        # 無料版の制限チェック
-        data = self.get_usage_data()
-        last_reset = datetime.strptime(data.get("last_reset_date", datetime.now().strftime("%Y-%m-%d")), "%Y-%m-%d")
-        now = datetime.now()
-        
-        # 月が変わったらリセット
-        if now.month != last_reset.month or now.year != last_reset.year:
-            data["monthly_count"] = 0
-            data["last_reset_date"] = now.strftime("%Y-%m-%d")
-            self.save_usage_data(data)
-        
-        current_count = data.get("monthly_count", 0)
-        
-        if current_count + file_count > self.FREE_LIMIT_MONTHLY:
-            remaining = self.FREE_LIMIT_MONTHLY - current_count
-            return False, f"無料版の月間制限（{self.FREE_LIMIT_MONTHLY}枚）に達しています。残り: {remaining}枚"
+        if file_count > self.FREE_LIMIT_PER_BATCH:
+            return False, f"無料版は1回{self.FREE_LIMIT_PER_BATCH}枚までです。Pro版にアップグレードしてください。"
         
         return True, None
     
     def record_usage(self, file_count: int):
-        """使用状況を記録"""
+        """使用状況を記録（累計用、将来の拡張用）"""
         data = self.get_usage_data()
-        data["monthly_count"] = data.get("monthly_count", 0) + file_count
         data["total_processed"] = data.get("total_processed", 0) + file_count
         self.save_usage_data(data)
     
@@ -130,17 +163,22 @@ class LicenseManager:
         """使用状況情報を取得"""
         data = self.get_usage_data()
         is_pro = self.check_license()
+        is_trial = self.is_trial_active() and data.get("license_type") != "pro"
+        
+        if is_pro:
+            license_label = "Pro版" if data.get("license_type") == "pro" else "トライアル中"
+        else:
+            license_label = "無料版"
         
         info = {
             "is_pro": is_pro,
-            "license_type": "Pro版" if is_pro else "無料版",
-            "monthly_count": data.get("monthly_count", 0),
-            "monthly_limit": None if is_pro else self.FREE_LIMIT_MONTHLY,
-            "total_processed": data.get("total_processed", 0)
+            "license_type": license_label,
+            "per_batch_limit": None if is_pro else self.FREE_LIMIT_PER_BATCH,
+            "total_processed": data.get("total_processed", 0),
+            "is_trial": is_trial,
+            "remaining_trial_days": self.get_remaining_trial_days() if is_trial else 0,
+            "trial_end_date": self.trial_end_date() if is_trial else None,
         }
-        
-        if not is_pro:
-            info["remaining"] = self.FREE_LIMIT_MONTHLY - info["monthly_count"]
         
         return info
 

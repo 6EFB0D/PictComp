@@ -45,18 +45,7 @@ GitHub に表示される URL を使って、以下を実行します。
 
 ```bash
 cd d:\Users\admin_mak\project\PictComp
+git remote remove origin   # 既存の origin がある場合
 git remote add origin https://github.com/YOUR_USERNAME/PictComp_Dev.git
-git branch -M main
-git push -u origin main
+git push -u origin master
 ```
-
-> **補足**: 現在のブランチは `master` です。GitHub のデフォルトが `main` の場合は、上記の `git branch -M main` でブランチ名を変更してからプッシュします。`master` のまま使う場合は、`git push -u origin master` のみ実行してください。
-
----
-
-## 現在の状態
-
-- ✅ ローカル Git リポジトリ初期化済み
-- ✅ .gitignore 作成済み
-- ✅ 初回コミット済み（14ファイル）
-- ⏳ リモートリポジトリの作成とプッシュは未実施

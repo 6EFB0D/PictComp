@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Nov  7 11:16:58 2025
-
-@author: 1193015
+PictComp 旧版（v1.x）コマンドラインアプリ
+※ 新規利用は gui_main.py（GUI版）または app_streamlit.py（Web版）を推奨
 """
 import os
 from PIL import Image
@@ -72,5 +71,3 @@ for filename in tqdm(files, desc="画像圧縮中", unit="ファイル"):
 
     except Exception as e:
         logging.error(f"エラー発生: {filename} - {str(e)}")
-
-
