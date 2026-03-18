@@ -45,15 +45,7 @@ jobs:
         run: |
           if [ ! -f assets/icon/pictcomp_bright.jpg ]; then
             echo "pictcomp_bright.jpg not found, creating placeholder..."
-            python -c "
-from PIL import Image
-from pathlib import Path
-p = Path('assets/icon/pictcomp_bright.jpg')
-p.parent.mkdir(parents=True, exist_ok=True)
-img = Image.new('RGB', (256, 256), color=(100, 149, 237))
-img.save(p)
-print('Created placeholder pictcomp_bright.jpg')
-"
+            python -c 'from PIL import Image; from pathlib import Path; p = Path("assets/icon/pictcomp_bright.jpg"); p.parent.mkdir(parents=True, exist_ok=True); Image.new("RGB", (256, 256), color=(100, 149, 237)).save(p); print("Created placeholder pictcomp_bright.jpg")'
           fi
           python assets/icon/create_icons.py
 
