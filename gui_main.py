@@ -3,6 +3,7 @@
 画像圧縮アプリのメインGUI
 """
 import os
+import sys
 import webbrowser
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
@@ -82,6 +83,13 @@ class PictCompGUI:
         license_menu.add_command(label="ライセンスキーを入力", command=self._show_license_input)
         help_menu.add_separator()
         help_menu.add_command(label="バージョン情報", command=self.show_version_info)
+        # 法的情報（サブメニュー）
+        legal_menu = tk.Menu(help_menu, tearoff=0)
+        help_menu.add_cascade(label="法的情報", menu=legal_menu)
+        legal_menu.add_command(label="利用許諾", command=self._show_terms_of_use)
+        legal_menu.add_command(label="ライセンス (MIT)", command=self._show_license)
+        legal_menu.add_command(label="クレジット", command=self._show_credits)
+        help_menu.add_separator()
         # サポート・お問い合わせ（サブメニュー）
         support_menu = tk.Menu(help_menu, tearoff=0)
         help_menu.add_cascade(label="サポート・お問い合わせ", menu=support_menu)
@@ -150,6 +158,117 @@ Pro版の購入は現在準備中です。近日公開予定です。"""
         from version import HOMEPAGE
         webbrowser.open(HOMEPAGE)
     
+    def _show_text_window(self, title: str, text: str):
+        """テキストをスクロール可能なウィンドウで表示"""
+        win = tk.Toplevel(self.root)
+        win.title(title)
+        win.geometry("500x400")
+        win.minsize(400, 300)
+        
+        frame = ttk.Frame(win, padding="10")
+        frame.pack(fill=tk.BOTH, expand=True)
+        
+        text_widget = tk.Text(frame, wrap=tk.WORD, font=("", 10), padx=10, pady=10)
+        scrollbar = ttk.Scrollbar(frame)
+        
+        text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        text_widget.config(yscrollcommand=scrollbar.set)
+        scrollbar.config(command=text_widget.yview)
+        
+        text_widget.insert(tk.END, text)
+        text_widget.config(state=tk.DISABLED)
+        
+        ttk.Button(win, text="閉じる", command=win.destroy).pack(pady=10)
+    
+    def _show_terms_of_use(self):
+        """利用許諾を表示"""
+        from version import COPYRIGHT, HOMEPAGE, SUPPORT_EMAIL
+        text = f"""PictComp 利用許諾
+
+本ソフトウェア（PictComp）をご利用いただくにあたり、以下の条件に同意いただく必要があります。
+
+【使用条件】
+• 本ソフトウェアは「現状のまま」提供されます。
+• 商用・非商用を問わず、個人・法人でご利用いただけます。
+• 本ソフトウェアの使用により生じた損害について、開発者は一切の責任を負いません。
+
+【禁止事項】
+• 本ソフトウェアを逆コンパイル、逆アセンブル、逆工学する行為
+• ライセンス条項に反する再配布
+
+【お問い合わせ】
+ご質問・ご要望はお気軽にご連絡ください。
+{HOMEPAGE}
+{SUPPORT_EMAIL}
+
+{COPYRIGHT}
+"""
+        self._show_text_window("利用許諾", text)
+    
+    def _show_license(self):
+        """ライセンス（MIT）を表示"""
+        if getattr(sys, 'frozen', False):
+            base_path = sys._MEIPASS
+        else:
+            base_path = os.path.dirname(os.path.abspath(__file__))
+        license_path = os.path.join(base_path, "LICENSE")
+        if os.path.exists(license_path):
+            try:
+                with open(license_path, "r", encoding="utf-8") as f:
+                    text = f.read()
+            except Exception:
+                text = "ライセンスファイルの読み込みに失敗しました。"
+        else:
+            text = """MIT License
+
+Copyright (c) 2026 Office Go Plan
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
+        self._show_text_window("ライセンス (MIT)", text)
+    
+    def _show_credits(self):
+        """クレジット（使用ライブラリ）を表示"""
+        text = """PictComp クレジット
+
+本ソフトウェアは以下のオープンソースライブラリを使用しています。
+
+【Pillow (PIL)】
+画像処理ライブラリ
+ライセンス: BSD License (HPND)
+https://github.com/python-pillow/Pillow
+
+【pillow-heif】
+HEIC形式（iPhone写真等）の読み込み対応
+ライセンス: MIT License
+https://github.com/bigcat88/pillow_heif
+
+【Python / tkinter】
+GUIフレームワーク（Python標準ライブラリ）
+ライセンス: PSF License
+
+---
+© 2026 Office Go Plan
+"""
+        self._show_text_window("クレジット", text)
+    
     def show_usage_info(self):
         """使い方（EXIFの注意・無料版とPro版の違い含む）を表示"""
         usage_text = """【基本的な使い方】
@@ -185,7 +304,9 @@ Pro版の購入は現在準備中です。近日公開予定です。"""
             trial_text = "\n\nトライアル期間は終了しました。"
         messagebox.showinfo(
             "バージョン情報",
-            f"PictComp v{__version__}\n\n{COPYRIGHT}\n\nホームページ:\n{HOMEPAGE}\n\nお問合せ先:\n{SUPPORT_EMAIL}{trial_text}\n\nPro版は準備中です。"
+            f"PictComp v{__version__}\n\n{COPYRIGHT}\n\n本ソフトウェアはMITライセンスの下で提供されています。\n"
+            f"詳細は「ヘルプ」→「法的情報」→「ライセンス (MIT)」をご確認ください。\n\n"
+            f"ホームページ:\n{HOMEPAGE}\n\nお問合せ先:\n{SUPPORT_EMAIL}{trial_text}\n\nPro版は準備中です。"
         )
     
     def setup_logging(self):
@@ -205,7 +326,8 @@ Pro版の購入は現在準備中です。近日公開予定です。"""
         header_frame = ttk.Frame(self.root, padding="10 5")
         header_frame.pack(fill=tk.X)
         
-        logo_path = os.path.join(os.path.dirname(__file__), "assets", "icon", "pictcomp_bright.jpg")
+        _base = sys._MEIPASS if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
+        logo_path = os.path.join(_base, "assets", "icon", "pictcomp_bright.jpg")
         if os.path.exists(logo_path):
             try:
                 logo_img = Image.open(logo_path)

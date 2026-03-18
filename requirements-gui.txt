@@ -1,0 +1,5 @@
+# PictComp GUI版 用依存パッケージ
+# インストール: pip install -r requirements-gui.txt
+
+Pillow>=10.0.0
+pillow-heif>=0.13.0

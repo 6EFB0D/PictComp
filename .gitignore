@@ -41,6 +41,10 @@ streamlit_debug.log
 # Packaging
 *.manifest
 *.spec
+!build_config/*.spec
+
+# Build output
+installer_output/
 
 # OS
 .DS_Store

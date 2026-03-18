@@ -1,0 +1,70 @@
+# PictComp macOS インストーラ ビルド
+# GitHub Actions の macos-latest ランナーで DMG を作成
+
+name: Build macOS Installer
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'build_config/**'
+      - 'assets/**'
+      - 'gui_main.py'
+      - 'image_compressor.py'
+      - 'config_manager.py'
+      - 'license_manager.py'
+      - 'presets.py'
+      - 'exif_viewer.py'
+      - 'image_viewer.py'
+      - 'version.py'
+      - 'requirements-gui.txt'
+      - '.github/workflows/build-macos.yml'
+  workflow_dispatch:  # 手動実行
+  release:
+    types: [published]  # リリース公開時に実行
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-gui.txt
+          pip install pyinstaller
+
+      - name: Create icons
+        run: |
+          python assets/icon/create_icons.py
+
+      - name: Build application
+        run: |
+          chmod +x build_config/build_macos.sh
+          ./build_config/build_macos.sh
+
+      - name: Create DMG
+        run: |
+          chmod +x build_config/create_dmg.sh
+          ./build_config/create_dmg.sh
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PictComp-macOS
+          path: installer_output/*.dmg
+
+      - name: Upload to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer_output/*.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
