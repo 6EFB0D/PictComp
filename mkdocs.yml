@@ -1,0 +1,55 @@
+# PictComp ヘルプ - Material for MkDocs
+site_name: PictComp ヘルプ
+site_description: 画像一括圧縮・形式変換アプリのヘルプドキュメント
+site_author: Office Go Plan
+site_url: https://6EFB0D.github.io/office-goplan/pictcomp.html
+
+# 日本語対応
+theme:
+  name: material
+  language: ja
+  logo: assets/logo.jpg
+  favicon: assets/favicon.ico
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: ダークモードに切り替え
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: ライトモードに切り替え
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+
+# プラグイン
+plugins:
+  - search
+
+# マークダウン拡張
+markdown_extensions:
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - tables
+
+# ナビゲーション（目次）
+nav:
+  - はじめに: index.md
+  - 基本的な使い方: help/getting_started.md
+  - 圧縮・形式変換: help/compression.md
+  - プリセット: help/presets.md
+  - ファイル選択とサムネイル: help/file_selection.md
+  - 撮影情報（EXIF）: help/exif.md
+  - 一括処理: help/batch.md
+  - 画像ビューア: help/viewer.md
+  - トラブルシューティング: help/troubleshooting.md
+  - ライセンス・お問い合わせ: help/license.md

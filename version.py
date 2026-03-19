@@ -12,7 +12,7 @@ HOMEPAGE = "https://6EFB0D.github.io/office-goplan/"
 SUPPORT_EMAIL = "support@office-goplan.com"
 
 # PictCompのページ（GitHub Pages等）。設定後、ヘルプメニューからリンクされます
-PICTCOMP_PAGE_URL = ""
+PICTCOMP_PAGE_URL = "https://6EFB0D.github.io/office-goplan/pictcomp.html"
 
 # アンケート・要望フォームのURL（環境変数 PICTCOMP_FEEDBACK_FORM_URL で上書き可能）
 # 例: Google Forms, Typeform, Tally などのURLを設定

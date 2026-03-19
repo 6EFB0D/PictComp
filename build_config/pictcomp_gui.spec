@@ -19,6 +19,8 @@ a = Analysis(
         (os.path.join(ASSETS_ICON, 'pictcomp_bright.ico'), 'assets/icon'),
         # ライセンス（法的情報で表示）
         (os.path.join(PROJECT_ROOT, 'LICENSE'), '.'),
+        # ヘルプ（HTML）
+        (os.path.join(PROJECT_ROOT, 'docs', 'help'), 'docs/help'),
     ],
     hiddenimports=[
         'PIL',

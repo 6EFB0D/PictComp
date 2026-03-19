@@ -48,7 +48,7 @@ class ImageViewer:
         if not self.current_folder:
             return
         
-        supported_extensions = [".jpg", ".jpeg", ".png", ".heic", ".webp"]
+        supported_extensions = [".jpg", ".jpeg", ".png", ".heic", ".webp", ".tif", ".tiff", ".bmp"]
         all_files = [f for f in os.listdir(self.current_folder) 
                     if os.path.isfile(os.path.join(self.current_folder, f)) 
                     and os.path.splitext(f)[1].lower() in supported_extensions]
@@ -402,7 +402,11 @@ class ImageViewer:
         img_info = self.image_files[self.current_index]
         # コールバック関数があればそれを使用、なければ簡易表示
         if self.exif_callback:
-            self.exif_callback(img_info["path"], img_info["filename"])
+            file_list = [(info["path"], info["filename"]) for info in self.image_files]
+            try:
+                self.exif_callback(img_info["path"], img_info["filename"], file_list, self.current_index)
+            except TypeError:
+                self.exif_callback(img_info["path"], img_info["filename"])
         else:
             self.show_exif_info_simple(img_info["path"], img_info["filename"])
     

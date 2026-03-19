@@ -8,7 +8,8 @@
 
 ## 主な機能
 
-- **多形式対応**: JPEG、PNG、HEIC、WebP形式に対応
+- **多形式対応**: JPEG、PNG、HEIC、WebP、TIFF、BMP形式に対応
+- **形式変換**: 圧縮と同時に出力形式を変更可能（例: BMP→JPEG、HEIC→JPEG、TIFF→PNG）
 - **一括処理**: フォルダ内の画像を一度に処理
 - **プリセット機能**: PowerPoint用、ブログ用、SNS用、Web用など用途別テンプレート
 - **リサイズ機能**: 長辺ピクセル指定による自動リサイズ（アスペクト比維持）
@@ -75,7 +76,9 @@ python gui_main.py
 
 | 入力 | 出力 |
 |------|------|
-| JPEG, PNG, HEIC, WebP | JPEG, PNG, WebP |
+| JPEG, PNG, HEIC, WebP, TIFF, BMP | JPEG, PNG, WebP, TIFF, BMP |
+
+※ 出力形式を指定することで形式変換も可能です。
 
 ---
 

@@ -45,6 +45,7 @@ streamlit_debug.log
 
 # Build output
 installer_output/
+site/
 
 # OS
 .DS_Store

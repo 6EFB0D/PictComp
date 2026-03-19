@@ -4,7 +4,8 @@
 
 ## 主な機能
 
-- **多形式対応**: JPEG、PNG、HEIC、WebP形式に対応
+- **多形式対応**: JPEG、PNG、HEIC、WebP、TIFF、BMP形式に対応
+- **形式変換**: 圧縮と同時に出力形式を変更可能（例: HEIC→JPEG、TIFF→PNG）
 - **一括処理**: フォルダ内の画像を一度に処理
 - **リサイズ機能**: 長辺ピクセル指定による自動リサイズ（アスペクト比維持）
 - **EXIF保持**: メタデータの保持/削除を選択可能
@@ -121,11 +122,17 @@ python legacy/pictcomp_legacy.py
 - PNG (.png)
 - HEIC (.heic) - iPhoneで撮影した写真
 - WebP (.webp)
+- TIFF (.tif, .tiff) - 印刷・スキャン画像
+- BMP (.bmp) - Windows標準ビットマップ
 
 ### 出力形式
 - JPEG (.jpg)
 - PNG (.png)
 - WebP (.webp)
+- TIFF (.tiff)
+- BMP (.bmp)
+
+※ 出力形式を指定することで、形式変換（例: BMP→JPEG、HEIC→JPEG、TIFF→PNG）も可能です。
 
 ## ファイル構成
 

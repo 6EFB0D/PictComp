@@ -74,7 +74,7 @@ class PictCompGUI:
         # ヘルプメニュー
         help_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="ヘルプ", menu=help_menu)
-        help_menu.add_command(label="使い方", command=self.show_usage_info)
+        help_menu.add_command(label="ヘルプを開く", command=self._open_help)
         # Pro版・ライセンス（サブメニュー）
         license_menu = tk.Menu(help_menu, tearoff=0)
         help_menu.add_cascade(label="Pro版・ライセンス", menu=license_menu)
@@ -269,29 +269,24 @@ GUIフレームワーク（Python標準ライブラリ）
 """
         self._show_text_window("クレジット", text)
     
-    def show_usage_info(self):
-        """使い方（EXIFの注意・無料版とPro版の違い含む）を表示"""
-        usage_text = """【基本的な使い方】
-1. 入力フォルダ・出力フォルダを選択
-2. プリセットを選ぶか、圧縮設定を調整
-3. 「圧縮開始」で処理を実行
-
-【EXIF（撮影情報）について】
-以下の点にご注意ください：
-
-• セキュリティ: GPS情報が含まれると撮影場所が特定されるリスクがあります。Web公開する画像ではEXIF削除を推奨します。
-• 個人情報保護: 撮影日時・カメラ機種・レンズ情報などが含まれます。不特定多数に公開する場合は削除を検討してください。
-• ファイル容量: EXIFを保持するとファイルサイズが増えます。容量を抑えたい場合は削除を選択してください。
-
-※ ブログ用・SNS用・Web用・メール添付用・PNG透過保持のプリセットでは、セキュリティ・個人情報保護の観点からEXIF削除が固定されています。
-
-【プレリリース】初回起動から14日間は全機能を無料でお試しいただけます。
-
-【無料版とPro版の違い】※Pro版は準備中です。
-• 1回の処理枚数: 無料版 20枚まで / Pro版・トライアル 無制限
-• 基本圧縮・PNG/WebP・リサイズ・プリセット・EXIF情報閲覧: 両方 ✅
-• EXIF保持・レポートエクスポート・ファイル名変更: 無料版 ❌ / Pro版・トライアル ✅"""
-        messagebox.showinfo("使い方", usage_text)
+    def _update_start_button_text(self):
+        """形式変換のみの時はボタン文言を「変換開始」に変更"""
+        if not hasattr(self, "start_button"):
+            return
+        if getattr(self.settings, "convert_only", False):
+            self.start_button.config(text="変換開始")
+        else:
+            self.start_button.config(text="圧縮開始")
+    
+    def _open_help(self):
+        """ヘルプ（HTML）を開く"""
+        _base = sys._MEIPASS if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
+        help_dir = os.path.join(_base, "docs", "help")
+        html_path = os.path.join(help_dir, "index.html")
+        if os.path.exists(html_path):
+            webbrowser.open(f"file://{html_path}")
+        else:
+            messagebox.showinfo("ヘルプ", "ヘルプファイルが見つかりません。")
     
     def show_version_info(self):
         """バージョン情報を表示"""
@@ -437,20 +432,36 @@ GUIフレームワーク（Python標準ライブラリ）
         # 出力形式
         ttk.Label(settings_frame, text="出力形式:").grid(row=3, column=0, sticky=tk.W, pady=3)
         self.output_format_var = tk.StringVar(value=self.settings.output_format)
-        format_combo = ttk.Combobox(settings_frame, textvariable=self.output_format_var, values=["auto", "jpg", "png", "webp"], state="readonly", width=10)
+        format_combo = ttk.Combobox(settings_frame, textvariable=self.output_format_var, values=["auto", "jpg", "png", "webp", "tiff", "bmp"], state="readonly", width=10)
         format_combo.grid(row=3, column=1, sticky=tk.W, padx=5)
         format_combo.bind("<<ComboboxSelected>>", lambda e: (setattr(self.settings, "output_format", self.output_format_var.get()), switch_to_custom()))
+        
+        # 形式変換のみ（圧縮・リサイズなし）
+        self.convert_only_var = tk.BooleanVar(value=getattr(self.settings, "convert_only", False))
+        self.convert_only_checkbtn = ttk.Checkbutton(settings_frame, text="形式変換のみ（圧縮・リサイズなし）", variable=self.convert_only_var)
+        self.convert_only_checkbtn.grid(row=4, column=0, columnspan=2, sticky=tk.W, pady=3)
+        self.convert_only_var.trace("w", lambda *args: (setattr(self.settings, "convert_only", self.convert_only_var.get()), self._update_start_button_text(), switch_to_custom()))
+        
+        # 出力ファイル名（プレフィックス・サフィックス）
+        ttk.Label(settings_frame, text="出力ファイル名サフィックス:").grid(row=5, column=0, sticky=tk.W, pady=3)
+        self.output_suffix_var = tk.StringVar(value=getattr(self.settings, "output_suffix", "_compressed"))
+        ttk.Entry(settings_frame, textvariable=self.output_suffix_var, width=15).grid(row=5, column=1, sticky=tk.W, padx=5)
+        self.output_suffix_var.trace("w", lambda *args: (setattr(self.settings, "output_suffix", self.output_suffix_var.get()), switch_to_custom()))
+        ttk.Label(settings_frame, text="プレフィックス:").grid(row=6, column=0, sticky=tk.W, pady=3)
+        self.output_prefix_var = tk.StringVar(value=getattr(self.settings, "output_prefix", ""))
+        ttk.Entry(settings_frame, textvariable=self.output_prefix_var, width=15).grid(row=6, column=1, sticky=tk.W, padx=5)
+        self.output_prefix_var.trace("w", lambda *args: (setattr(self.settings, "output_prefix", self.output_prefix_var.get()), switch_to_custom()))
         
         # 撮影情報の保持（Pro版限定、Web公開プリセット時は削除固定）
         self.exif_var = tk.BooleanVar(value=self.settings.keep_exif)
         self.exif_checkbtn = ttk.Checkbutton(settings_frame, text="撮影情報を残す（日付・カメラ情報など）", variable=self.exif_var)
-        self.exif_checkbtn.grid(row=4, column=0, columnspan=2, sticky=tk.W, pady=3)
+        self.exif_checkbtn.grid(row=7, column=0, columnspan=2, sticky=tk.W, pady=3)
         self.exif_var.trace("w", lambda *args: (setattr(self.settings, "keep_exif", self.exif_var.get()), switch_to_custom()))
         self._exif_label_text = "撮影情報を残す（日付・カメラ情報など）"
         
         # WebP設定
         webp_frame = ttk.Frame(settings_frame)
-        webp_frame.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=3)
+        webp_frame.grid(row=8, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=3)
         webp_frame.columnconfigure(1, weight=1)
         
         ttk.Label(webp_frame, text="WebP品質:").grid(row=0, column=0, sticky=tk.W)
@@ -474,6 +485,8 @@ GUIフレームワーク（Python標準ライブラリ）
                 self.jpeg_quality_var.set(preset_settings.jpeg_quality)
                 self.output_format_var.set(preset_settings.output_format)
                 self.exif_var.set(preset_settings.keep_exif)
+                self.convert_only_var.set(getattr(preset_settings, "convert_only", False))
+                self._update_start_button_text()
                 self.webp_quality_var.set(preset_settings.webp_quality)
                 self.webp_lossless_var.set(preset_settings.webp_lossless)
                 self.quality_label.config(text=str(preset_settings.jpeg_quality))
@@ -490,64 +503,109 @@ GUIフレームワーク（Python標準ライブラリ）
         folder_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=5)
         
         ttk.Label(folder_frame, text="入力フォルダ:").grid(row=0, column=0, sticky=tk.W, pady=5)
-        ttk.Entry(folder_frame, textvariable=self.input_folder, width=40).grid(row=0, column=1, padx=5)
+        input_entry = ttk.Entry(folder_frame, textvariable=self.input_folder, width=40)
+        input_entry.grid(row=0, column=1, padx=5)
+        input_entry.bind("<FocusOut>", self._on_input_folder_changed)
         ttk.Button(folder_frame, text="参照", command=self.select_input_folder).grid(row=0, column=2, padx=5)
         
         ttk.Label(folder_frame, text="出力フォルダ:").grid(row=1, column=0, sticky=tk.W, pady=5)
         ttk.Entry(folder_frame, textvariable=self.output_folder, width=40).grid(row=1, column=1, padx=5)
         ttk.Button(folder_frame, text="参照", command=self.select_output_folder).grid(row=1, column=2, padx=5)
+        self.use_compressed_subfolder_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(folder_frame, text="出力を「compressed_files」サブフォルダに保存（上書き防止）",
+                       variable=self.use_compressed_subfolder_var).grid(row=2, column=0, columnspan=3, sticky=tk.W, pady=3)
         folder_frame.columnconfigure(1, weight=1)
         
         # 右: ファイル一覧
-        list_frame = ttk.LabelFrame(right_frame, text="対象ファイル（Ctrl+クリックで複数選択可）", padding="10")
+        list_frame = ttk.LabelFrame(right_frame, text="対象ファイル", padding="10")
         list_frame.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
         list_frame.columnconfigure(0, weight=1)
-        list_frame.rowconfigure(0, weight=1)
+        list_frame.rowconfigure(1, weight=1)
+        
+        # 選択状態表示・操作バー
+        list_toolbar = ttk.Frame(list_frame)
+        list_toolbar.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 5))
+        list_toolbar.columnconfigure(0, weight=1)
+        self.selection_count_var = tk.StringVar(value="選択: 0件 / 全0件（未選択時は全件処理）")
+        ttk.Label(list_toolbar, textvariable=self.selection_count_var).pack(side=tk.LEFT)
+        ttk.Button(list_toolbar, text="全選択", command=self._select_all_files).pack(side=tk.LEFT, padx=2)
+        ttk.Button(list_toolbar, text="選択解除", command=self._deselect_all_files).pack(side=tk.LEFT, padx=2)
+        
+        # 表示切替: 一覧 / サムネイル
+        self.file_view_mode = tk.StringVar(value="list")
+        view_btn_frame = ttk.Frame(list_toolbar)
+        view_btn_frame.pack(side=tk.RIGHT)
+        ttk.Radiobutton(view_btn_frame, text="一覧", variable=self.file_view_mode, value="list", command=self._switch_file_view).pack(side=tk.LEFT, padx=2)
+        ttk.Radiobutton(view_btn_frame, text="サムネイル", variable=self.file_view_mode, value="thumb", command=self._switch_file_view).pack(side=tk.LEFT, padx=2)
         
         # リストボックスとスクロールバー（複数選択可能）
-        list_scrollbar = ttk.Scrollbar(list_frame)
-        list_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
-        self.file_listbox = tk.Listbox(list_frame, yscrollcommand=list_scrollbar.set, 
-                                       height=8, selectmode=tk.EXTENDED)
-        self.file_listbox.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        list_scrollbar.config(command=self.file_listbox.yview)
+        self.list_scrollbar = ttk.Scrollbar(list_frame)
+        self.list_scrollbar.grid(row=1, column=1, sticky=(tk.N, tk.S))
+        self.file_listbox = tk.Listbox(list_frame, yscrollcommand=self.list_scrollbar.set, 
+                                       height=8, selectmode=tk.EXTENDED,
+                                       selectbackground="#4a9eff", selectforeground="white")
+        self.file_listbox.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        self.list_scrollbar.config(command=self.file_listbox.yview)
+        
+        # サムネイル用フレーム（初期は非表示、一覧と切り替え）
+        self.thumb_frame = ttk.Frame(list_frame)
+        self.thumb_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
+        self.thumb_frame.grid_remove()
         
         # ダブルクリックで撮影情報を表示
         self.file_listbox.bind("<Double-Button-1>", self.show_exif_info)
+        self.file_listbox.bind("<<ListboxSelect>>", self._on_file_selection_changed)
         
-        # 右: プログレスバー
-        progress_frame = ttk.Frame(right_frame)
-        progress_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=5)
+        # 右: 処理状況（ゾーニング・タイトル付き）
+        status_progress_frame = ttk.LabelFrame(right_frame, text="処理状況", padding="8")
+        status_progress_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=5)
+        status_progress_frame.columnconfigure(1, weight=1)
         
+        ttk.Label(status_progress_frame, text="状態:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
         self.progress_var = tk.StringVar(value="待機中")
-        ttk.Label(progress_frame, textvariable=self.progress_var).pack()
-        self.progress_bar = ttk.Progressbar(progress_frame, mode="determinate")
-        self.progress_bar.pack(fill=tk.X, pady=5)
+        ttk.Label(status_progress_frame, textvariable=self.progress_var).grid(row=0, column=1, sticky=tk.W)
         
-        # 右: ボタン（2行に分けて見切れ防止）
-        button_frame = ttk.Frame(right_frame)
+        ttk.Label(status_progress_frame, text="進捗:").grid(row=1, column=0, sticky=tk.W, padx=(0, 5), pady=(5, 0))
+        self.progress_bar = ttk.Progressbar(status_progress_frame, mode="determinate")
+        self.progress_bar.grid(row=1, column=1, sticky=(tk.W, tk.E), pady=(5, 0))
+        
+        # 右: 操作ボタン（グルーピング）
+        button_frame = ttk.LabelFrame(right_frame, text="操作", padding="8")
         button_frame.grid(row=4, column=0, pady=10)
         button_frame.columnconfigure(0, weight=1)
         
-        btn_row1 = ttk.Frame(button_frame)
-        btn_row1.pack(fill=tk.X, pady=2)
-        ttk.Button(btn_row1, text="ファイル一覧を更新", command=self.update_file_list).pack(side=tk.LEFT, padx=3)
-        self.start_button = ttk.Button(btn_row1, text="圧縮開始", command=self.start_compression)
+        # メイン操作（圧縮・一覧・設定）
+        main_btn_frame = ttk.Frame(button_frame)
+        main_btn_frame.pack(fill=tk.X, pady=(0, 5))
+        self.start_button = ttk.Button(main_btn_frame, text="圧縮開始", command=self.start_compression)
+        self._update_start_button_text()
         self.start_button.pack(side=tk.LEFT, padx=3)
-        ttk.Button(btn_row1, text="設定を保存", command=self.save_settings).pack(side=tk.LEFT, padx=3)
+        ttk.Button(main_btn_frame, text="ファイル一覧を更新", command=self.update_file_list).pack(side=tk.LEFT, padx=3)
+        ttk.Button(main_btn_frame, text="設定を保存", command=self.save_settings).pack(side=tk.LEFT, padx=3)
         
-        btn_row2 = ttk.Frame(button_frame)
-        btn_row2.pack(fill=tk.X, pady=2)
-        self.export_report_btn = ttk.Button(btn_row2, text="レポートをエクスポート", command=self._export_report_or_show_pro_limit)
+        # 表示・エクスポート
+        view_btn_frame = ttk.Frame(button_frame)
+        view_btn_frame.pack(fill=tk.X, pady=2)
+        ttk.Button(view_btn_frame, text="撮影情報を表示", command=self.show_exif_info_from_selection).pack(side=tk.LEFT, padx=3)
+        ttk.Button(view_btn_frame, text="画像ビューアを開く", command=self.open_image_viewer).pack(side=tk.LEFT, padx=3)
+        self.export_report_btn = ttk.Button(view_btn_frame, text="レポートをエクスポート", command=self._export_report_or_show_pro_limit)
         self.export_report_btn.pack(side=tk.LEFT, padx=3)
-        ttk.Button(btn_row2, text="撮影情報を表示", command=self.show_exif_info_from_selection).pack(side=tk.LEFT, padx=3)
-        ttk.Button(btn_row2, text="画像ビューアを開く", command=self.open_image_viewer).pack(side=tk.LEFT, padx=3)
+        
+        # 一括処理
+        batch_btn_frame = ttk.Frame(button_frame)
+        batch_btn_frame.pack(fill=tk.X, pady=(2, 0))
+        ttk.Button(batch_btn_frame, text="ファイル日時を一括更新", command=self._batch_update_file_dates).pack(side=tk.LEFT, padx=3)
+        ttk.Button(batch_btn_frame, text="ファイル名を一括変更", command=self._batch_rename_by_shoot_date).pack(side=tk.LEFT, padx=3)
         
         # 処理結果を保存する変数
         self.last_processing_results = []
         
         # 画像ビューア
         self.image_viewer = None
+        # 撮影情報ビューア（単一ウィンドウ、再利用）
+        self._exif_viewer_window = None
+        self._exif_file_list = []
+        self._exif_current_index = 0
         
         # Pro版制限に応じてレポートボタンの状態を更新
         self._update_export_report_button_state()
@@ -617,11 +675,21 @@ GUIフレームワーク（Python標準ライブラリ）
             return
         self.export_report()
     
+    def _on_input_folder_changed(self, event=None):
+        """入力フォルダ変更時（フォーカスアウト等）に出力フォルダを追従"""
+        path = self.input_folder.get().strip()
+        if path and os.path.isdir(path):
+            self.output_folder.set(path)
+            self.update_file_list()
+            self._save_last_folders()
+    
     def select_input_folder(self):
         """入力フォルダを選択"""
         folder = filedialog.askdirectory(title="入力フォルダを選択してください")
         if folder:
             self.input_folder.set(folder)
+            # 出力フォルダも入力フォルダに追従
+            self.output_folder.set(folder)
             self.update_file_list()
             self._save_last_folders()
     
@@ -650,13 +718,155 @@ GUIフレームワーク（Python標準ライブラリ）
         if not input_path or not os.path.exists(input_path):
             return
         
-        supported_extensions = [".jpg", ".jpeg", ".png", ".heic", ".webp"]
+        supported_extensions = [".jpg", ".jpeg", ".png", ".heic", ".webp", ".tif", ".tiff", ".bmp"]
         files = [f for f in os.listdir(input_path) 
                 if os.path.isfile(os.path.join(input_path, f)) 
                 and os.path.splitext(f)[1].lower() in supported_extensions]
         
         for file in files:
             self.file_listbox.insert(tk.END, file)
+        self._update_selection_count()
+    
+    def _update_selection_count(self):
+        """選択件数を表示"""
+        total = self.file_listbox.size()
+        sel = self.file_listbox.curselection()
+        n = len(sel)
+        if n == 0:
+            self.selection_count_var.set(f"選択: 全{total}件を処理（クリックで対象を限定）")
+        else:
+            self.selection_count_var.set(f"選択中: {n}件 / 全{total}件")
+    
+    def _on_file_selection_changed(self, event=None):
+        """ファイル選択変更時"""
+        self._update_selection_count()
+    
+    def _select_all_files(self):
+        """全ファイルを選択"""
+        self.file_listbox.selection_set(0, self.file_listbox.size() - 1)
+        self._update_selection_count()
+    
+    def _deselect_all_files(self):
+        """選択を解除"""
+        self.file_listbox.selection_clear(0, self.file_listbox.size() - 1)
+        self._update_selection_count()
+    
+    def _switch_file_view(self):
+        """一覧/サムネイル表示を切替"""
+        if self.file_view_mode.get() == "thumb":
+            self._show_thumbnail_view()
+        else:
+            self._show_list_view()
+    
+    def _show_list_view(self):
+        """一覧表示に切替"""
+        if hasattr(self, "_thumb_canvas_unbind") and callable(self._thumb_canvas_unbind):
+            try:
+                self._thumb_canvas_unbind()
+            except Exception:
+                pass
+        self.thumb_frame.grid_remove()
+        self.file_listbox.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        self.list_scrollbar.grid(row=1, column=1, sticky=(tk.N, tk.S))
+    
+    def _show_thumbnail_view(self):
+        """サムネイル表示に切替"""
+        self.file_listbox.grid_remove()
+        self.list_scrollbar.grid_remove()
+        self.thumb_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
+        self._build_thumbnail_grid()
+    
+    def _build_thumbnail_grid(self):
+        """サムネイルグリッドを構築"""
+        for w in self.thumb_frame.winfo_children():
+            w.destroy()
+        
+        input_path = self.input_folder.get()
+        if not input_path or not os.path.exists(input_path):
+            return
+        
+        supported_extensions = [".jpg", ".jpeg", ".png", ".heic", ".webp", ".tif", ".tiff", ".bmp"]
+        files = [f for f in os.listdir(input_path)
+                 if os.path.isfile(os.path.join(input_path, f))
+                 and os.path.splitext(f)[1].lower() in supported_extensions]
+        
+        if not files:
+            ttk.Label(self.thumb_frame, text="画像ファイルがありません").pack(pady=20)
+            return
+        
+        # スクロール可能なフレーム
+        canvas = tk.Canvas(self.thumb_frame)
+        scrollbar = ttk.Scrollbar(self.thumb_frame)
+        inner = ttk.Frame(canvas)
+        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=inner, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.config(command=canvas.yview)
+        
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        THUMB_SIZE = 80
+        COLS = 6
+        SEL_BORDER = "#0066cc"  # 選択時の枠色（濃い青）
+        SEL_BG = "#e3f2fd"     # 選択時の背景（薄い青）
+        for i, filename in enumerate(files):
+            row, col = divmod(i, COLS)
+            is_selected = i in self.file_listbox.curselection()
+            # 選択時は太い枠で囲む（tk.Frameで枠を表示）
+            item_frame = tk.Frame(inner, relief=tk.SOLID, bd=4 if is_selected else 1,
+                                  bg=SEL_BORDER if is_selected else "#d0d0d0",
+                                  highlightthickness=0)
+            item_frame.grid(row=row, column=col, padx=4, pady=4, sticky=tk.NW)
+            
+            inner_frame = tk.Frame(item_frame, bg=SEL_BG if is_selected else "SystemButtonFace", padx=2, pady=2)
+            inner_frame.pack()
+            
+            try:
+                path = os.path.join(input_path, filename)
+                if filename.lower().endswith(".heic"):
+                    heif_file = pillow_heif.read_heif(path)
+                    img = Image.frombytes(heif_file.mode, heif_file.size, heif_file.data)
+                else:
+                    img = Image.open(path)
+                img.thumbnail((THUMB_SIZE, THUMB_SIZE), Image.Resampling.LANCZOS)
+                photo = ImageTk.PhotoImage(img)
+                lbl = tk.Label(inner_frame, image=photo, cursor="hand2")
+                lbl.image = photo
+                lbl.grid(row=0, column=0)
+                
+                short_name = filename if len(filename) <= 12 else filename[:9] + "..."
+                name_lbl = ttk.Label(inner_frame, text=short_name, wraplength=THUMB_SIZE)
+                name_lbl.grid(row=1, column=0)
+                
+                if is_selected:
+                    check_lbl = tk.Label(inner_frame, text="✓ 選択", font=("", 9, "bold"),
+                                        fg="white", bg=SEL_BORDER, padx=4, pady=1)
+                    check_lbl.grid(row=0, column=0, sticky=tk.SE, padx=2, pady=2)
+                
+                def make_click_handler(idx):
+                    def handler(event):
+                        if idx in self.file_listbox.curselection():
+                            self.file_listbox.selection_clear(idx)
+                        else:
+                            self.file_listbox.selection_set(idx)
+                        self._update_selection_count()
+                        self._build_thumbnail_grid()
+                    return handler
+                for w in (lbl, name_lbl):
+                    w.bind("<Button-1>", make_click_handler(i))
+                    w.config(cursor="hand2")
+                if is_selected:
+                    check_lbl.bind("<Button-1>", make_click_handler(i))
+                    check_lbl.config(cursor="hand2")
+            except Exception as e:
+                ttk.Label(inner_frame, text=filename[:12]).grid(row=0, column=0)
+        
+        # マウスホイールでスクロール
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        self._thumb_canvas_unbind = lambda: canvas.unbind_all("<MouseWheel>") if canvas.winfo_exists() else None
     
     def load_last_settings(self):
         """前回設定を読み込み（フォルダパスの復元）"""
@@ -666,6 +876,10 @@ GUIフレームワーク（Python標準ライブラリ）
             self.update_file_list()
         if output_folder and os.path.exists(output_folder):
             self.output_folder.set(output_folder)
+        else:
+            # 出力フォルダが未設定の場合は入力フォルダと同じパスをデフォルトで設定
+            if input_folder and os.path.exists(input_folder):
+                self.output_folder.set(input_folder)
     
     def apply_preset(self, event=None):
         """プリセットを適用"""
@@ -710,7 +924,7 @@ GUIフレームワーク（Python標準ライブラリ）
             return
         
         # 最初の画像ファイルを取得
-        supported_extensions = [".jpg", ".jpeg", ".png", ".heic", ".webp"]
+        supported_extensions = [".jpg", ".jpeg", ".png", ".heic", ".webp", ".tif", ".tiff", ".bmp"]
         files = [f for f in os.listdir(input_path) 
                 if os.path.isfile(os.path.join(input_path, f)) 
                 and os.path.splitext(f)[1].lower() in supported_extensions]
@@ -904,7 +1118,7 @@ GUIフレームワーク（Python標準ライブラリ）
             messagebox.showerror("エラー", "ファイルが見つかりません")
             return
         
-        self.show_exif_info_window(file_path, filename)
+        self._open_exif_viewer(file_path, filename, selection[0])
     
     def show_exif_info(self, event=None):
         """ダブルクリックでEXIF情報を表示"""
@@ -921,13 +1135,267 @@ GUIフレームワーク（Python標準ライブラリ）
         if not os.path.exists(file_path):
             return
         
-        self.show_exif_info_window(file_path, filename)
+        self._open_exif_viewer(file_path, filename, selection[0])
     
-    def show_exif_info_window(self, file_path: str, filename: str):
-        """EXIF情報表示ウィンドウを開く（表形式）"""
-        exif_window = tk.Toplevel(self.root)
-        exif_window.title(f"撮影情報 - {filename}")
-        exif_window.geometry("800x550")
+    def show_exif_info_window(self, file_path: str, filename: str, file_list: list = None, current_index: int = None):
+        """EXIF情報表示（外部から呼ばれる場合。単一ウィンドウで開く）"""
+        if file_list is not None and current_index is not None:
+            self._exif_file_list = file_list
+            self._exif_current_index = min(current_index, len(file_list) - 1)
+        self._open_exif_viewer(file_path, filename, None, use_existing_list=(file_list is not None))
+    
+    def _get_exif_file_list(self, file_path: str, filename: str) -> tuple:
+        """ファイル一覧と現在インデックスを取得"""
+        input_path = self.input_folder.get()
+        if input_path and os.path.dirname(file_path) == input_path:
+            file_list = []
+            for i in range(self.file_listbox.size()):
+                fn = self.file_listbox.get(i)
+                fp = os.path.join(input_path, fn)
+                file_list.append((fp, fn))
+            for i, (fp, fn) in enumerate(file_list):
+                if fn == filename and fp == file_path:
+                    return file_list, i
+            if file_list:
+                return file_list, 0
+        return [(file_path, filename)], 0
+    
+    def _open_exif_viewer(self, file_path: str, filename: str, listbox_index: int = None, use_existing_list: bool = False):
+        """撮影情報ビューアを開く（単一ウィンドウ、前後ナビ付き）"""
+        if not use_existing_list:
+            file_list, current_index = self._get_exif_file_list(file_path, filename)
+            if listbox_index is not None and listbox_index < len(file_list):
+                current_index = listbox_index
+            self._exif_file_list = file_list
+            self._exif_current_index = current_index
+        
+        if self._exif_viewer_window and self._exif_viewer_window.winfo_exists():
+            self._exif_viewer_window.lift()
+            self._exif_viewer_window.focus()
+            self._refresh_exif_content()
+            return
+        
+        self._exif_viewer_window = tk.Toplevel(self.root)
+        self._exif_viewer_window.title("撮影情報")
+        self._exif_viewer_window.geometry("800x550")
+        self._exif_viewer_window.protocol("WM_DELETE_WINDOW", self._on_exif_viewer_close)
+        self._build_exif_viewer_content()
+    
+    def _on_exif_viewer_close(self):
+        """撮影情報ウィンドウを閉じた時"""
+        if self._exif_viewer_window:
+            w = self._exif_viewer_window
+            self._exif_viewer_window = None
+            w.destroy()
+    
+    def _exif_go_prev(self):
+        """前の画像へ"""
+        if self._exif_current_index > 0:
+            self._exif_current_index -= 1
+            self._refresh_exif_content()
+    
+    def _exif_go_next(self):
+        """次の画像へ"""
+        if self._exif_current_index < len(self._exif_file_list) - 1:
+            self._exif_current_index += 1
+            self._refresh_exif_content()
+    
+    def _refresh_exif_content(self):
+        """撮影情報の表示を更新"""
+        if self._exif_viewer_window and self._exif_viewer_window.winfo_exists():
+            self._build_exif_viewer_content()
+    
+    def _get_shoot_date_from_exif(self, exif_data: dict) -> Optional[datetime]:
+        """EXIFから撮影日時を取得"""
+        if not exif_data or "error" in exif_data:
+            return None
+        for tag in ("DateTimeOriginal", "DateTimeDigitized", "DateTime"):
+            if tag in exif_data:
+                try:
+                    s = exif_data[tag]
+                    if isinstance(s, str):
+                        return datetime.strptime(s, "%Y:%m:%d %H:%M:%S")
+                except Exception:
+                    pass
+        return None
+    
+    def _get_target_files_for_batch(self) -> List[tuple]:
+        """一括処理の対象ファイル一覧を取得（選択があれば選択分、なければ全件）"""
+        input_path = self.input_folder.get()
+        if not input_path or not os.path.exists(input_path):
+            return []
+        sel = self.file_listbox.curselection()
+        if sel:
+            return [(os.path.join(input_path, self.file_listbox.get(i)), self.file_listbox.get(i)) for i in sel]
+        return [(os.path.join(input_path, self.file_listbox.get(i)), self.file_listbox.get(i)) 
+                for i in range(self.file_listbox.size())]
+    
+    def _batch_update_file_dates(self):
+        """ファイル日時を一括更新（撮影日時に合わせる）"""
+        files = self._get_target_files_for_batch()
+        if not files:
+            messagebox.showwarning("警告", "対象ファイルがありません。入力フォルダを選択し、ファイルを選択してください。")
+            return
+        
+        to_update = []
+        for fp, fn in files:
+            exif = ExifViewer.get_exif_data(fp)
+            shoot = self._get_shoot_date_from_exif(exif)
+            if shoot:
+                to_update.append((fp, fn, shoot))
+        
+        if not to_update:
+            messagebox.showinfo("情報", "撮影日時があるファイルがありません。")
+            return
+        
+        if not messagebox.askyesno("確認", f"{len(to_update)}個のファイルの日時を撮影日時に合わせて更新しますか？"):
+            return
+        
+        ok, ng = 0, 0
+        for fp, fn, shoot in to_update:
+            try:
+                ts = shoot.timestamp()
+                os.utime(fp, (ts, ts))
+                ok += 1
+            except Exception:
+                ng += 1
+        
+        messagebox.showinfo("完了", f"成功: {ok}個\n失敗: {ng}個")
+        self.update_file_list()
+        if self._exif_viewer_window and self._exif_viewer_window.winfo_exists():
+            self._refresh_exif_content()
+    
+    def _batch_rename_by_shoot_date(self):
+        """ファイル名を一括変更（撮影日時に基づく）"""
+        if not self.license_manager.check_license():
+            messagebox.showinfo("Pro版限定", "撮影日時に基づくファイル名一括変更はPro版の機能です。")
+            return
+        
+        files = self._get_target_files_for_batch()
+        if not files:
+            messagebox.showwarning("警告", "対象ファイルがありません。入力フォルダを選択し、ファイルを選択してください。")
+            return
+        
+        to_rename = []
+        for fp, fn in files:
+            exif = ExifViewer.get_exif_data(fp)
+            shoot = self._get_shoot_date_from_exif(exif)
+            if shoot:
+                name, ext = os.path.splitext(fn)
+                new_fn = f"{shoot.strftime('%Y%m%d_%H%M%S')}{ext}"
+                new_fp = os.path.join(os.path.dirname(fp), new_fn)
+                if new_fp != fp:
+                    to_rename.append((fp, fn, new_fp, new_fn, shoot))
+        
+        if not to_rename:
+            messagebox.showinfo("情報", "撮影日時があるファイルがありません。")
+            return
+        
+        if not messagebox.askyesno("確認", f"{len(to_rename)}個のファイル名を撮影日時形式に変更しますか？"):
+            return
+        
+        ok, ng = 0, 0
+        used_names = set()
+        for fp, fn, new_fp, new_fn, shoot in to_rename:
+            try:
+                dest = new_fp
+                if dest in used_names or (os.path.exists(dest) and dest != fp):
+                    base, ext = os.path.splitext(new_fn)
+                    for c in range(1, 1000):
+                        dest = os.path.join(os.path.dirname(fp), f"{base}_{c:03d}{ext}")
+                        if dest not in used_names and (not os.path.exists(dest) or dest == fp):
+                            break
+                    else:
+                        ng += 1
+                        continue
+                used_names.add(dest)
+                os.rename(fp, dest)
+                ok += 1
+            except Exception:
+                ng += 1
+        
+        messagebox.showinfo("完了", f"成功: {ok}個\n失敗: {ng}個")
+        self.update_file_list()
+        if self._exif_viewer_window and self._exif_viewer_window.winfo_exists():
+            self._exif_file_list = [(os.path.join(self.input_folder.get(), self.file_listbox.get(i)), self.file_listbox.get(i)) 
+                                    for i in range(self.file_listbox.size())]
+            self._refresh_exif_content()
+    
+    def _exif_batch_update_dates(self):
+        """撮影情報ウィンドウ表示中の全ファイルの日時を一括更新"""
+        to_update = []
+        for fp, fn in self._exif_file_list:
+            exif = ExifViewer.get_exif_data(fp)
+            shoot = self._get_shoot_date_from_exif(exif)
+            if shoot:
+                to_update.append((fp, shoot))
+        if not to_update:
+            messagebox.showinfo("情報", "撮影日時があるファイルがありません。")
+            return
+        if not messagebox.askyesno("確認", f"表示中の{len(to_update)}個のファイルの日時を更新しますか？"):
+            return
+        ok, ng = 0, 0
+        for fp, shoot in to_update:
+            try:
+                os.utime(fp, (shoot.timestamp(), shoot.timestamp()))
+                ok += 1
+            except Exception:
+                ng += 1
+        messagebox.showinfo("完了", f"成功: {ok}個\n失敗: {ng}個")
+        self.update_file_list()
+        self._refresh_exif_content()
+    
+    def _exif_batch_rename(self):
+        """撮影情報ウィンドウ表示中の全ファイルの名前を一括変更"""
+        to_rename = []
+        for fp, fn in self._exif_file_list:
+            exif = ExifViewer.get_exif_data(fp)
+            shoot = self._get_shoot_date_from_exif(exif)
+            if shoot:
+                ext = os.path.splitext(fn)[1]
+                new_fn = f"{shoot.strftime('%Y%m%d_%H%M%S')}{ext}"
+                new_fp = os.path.join(os.path.dirname(fp), new_fn)
+                if new_fp != fp:
+                    to_rename.append((fp, fn, new_fp, new_fn))
+        if not to_rename:
+            messagebox.showinfo("情報", "撮影日時があるファイルがありません。")
+            return
+        if not messagebox.askyesno("確認", f"表示中の{len(to_rename)}個のファイル名を変更しますか？"):
+            return
+        ok, ng = 0, 0
+        used = set()
+        rename_map = {}
+        for fp, fn, new_fp, new_fn in to_rename:
+            try:
+                dest = new_fp
+                if dest in used or (os.path.exists(dest) and dest != fp):
+                    base, ext = os.path.splitext(new_fn)
+                    for c in range(1, 1000):
+                        dest = os.path.join(os.path.dirname(fp), f"{base}_{c:03d}{ext}")
+                        if dest not in used and (not os.path.exists(dest) or dest == fp):
+                            break
+                    else:
+                        ng += 1
+                        continue
+                used.add(dest)
+                os.rename(fp, dest)
+                rename_map[fp] = (dest, os.path.basename(dest))
+                ok += 1
+            except Exception:
+                ng += 1
+        self._exif_file_list = [rename_map.get(fp, (fp, fn)) for fp, fn in self._exif_file_list]
+        messagebox.showinfo("完了", f"成功: {ok}個\n失敗: {ng}個")
+        self.update_file_list()
+        self._refresh_exif_content()
+    
+    def _build_exif_viewer_content(self):
+        """撮影情報ビューアの内容を構築（前後ナビ付き）"""
+        exif_window = self._exif_viewer_window
+        for w in exif_window.winfo_children():
+            w.destroy()
+        
+        file_path, filename = self._exif_file_list[self._exif_current_index]
+        exif_window.title(f"撮影情報 - {filename} ({self._exif_current_index + 1}/{len(self._exif_file_list)})")
         
         # EXIFデータを取得
         exif_data = ExifViewer.get_exif_data(file_path)
@@ -935,6 +1403,17 @@ GUIフレームワーク（Python標準ライブラリ）
         # メインフレーム
         main_frame = ttk.Frame(exif_window, padding="10")
         main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # ナビゲーションバー（前へ・次へ）
+        nav_frame = ttk.Frame(main_frame)
+        nav_frame.pack(fill=tk.X, pady=(0, 10))
+        total = len(self._exif_file_list)
+        can_prev = self._exif_current_index > 0
+        can_next = self._exif_current_index < total - 1
+        ttk.Button(nav_frame, text="← 前へ", command=self._exif_go_prev, state="normal" if can_prev else "disabled").pack(side=tk.LEFT, padx=5)
+        ttk.Label(nav_frame, text=f"{self._exif_current_index + 1} / {total}").pack(side=tk.LEFT, padx=5)
+        ttk.Button(nav_frame, text="次へ →", command=self._exif_go_next, state="normal" if can_next else "disabled").pack(side=tk.LEFT, padx=5)
+        ttk.Label(nav_frame, text=filename, font=("", 10, "bold")).pack(side=tk.LEFT, padx=15)
         
         if not exif_data or "error" in exif_data:
             if "error" in exif_data:
@@ -958,7 +1437,7 @@ GUIフレームワーク（Python標準ライブラリ）
             # ログに記録
             logging.warning(f"⚠️ {filename}: EXIF情報がないため、EXIF関連機能は使用できません")
             
-            ttk.Button(main_frame, text="閉じる", command=exif_window.destroy).pack(pady=10)
+            ttk.Button(main_frame, text="閉じる", command=self._on_exif_viewer_close).pack(pady=10)
             return
         
         # メタデータ表示（サマリーと詳細を統合）
@@ -1076,10 +1555,8 @@ GUIフレームワーク（Python標準ライブラリ）
                     import time
                     timestamp = shoot_date.timestamp()
                     os.utime(file_path, (timestamp, timestamp))
-                    messagebox.showinfo("成功", "ファイルの作成日時と更新日時を更新しました。")
-                    # ウィンドウを閉じて再表示
-                    exif_window.destroy()
-                    self.show_exif_info_window(file_path, filename)
+                    messagebox.showinfo("成功", "ファイルの作成日時と更新日時を更新しました。（このファイルのみ）")
+                    self._refresh_exif_content()
                 except Exception as e:
                     messagebox.showerror("エラー", f"ファイル日時の更新に失敗しました:\n{str(e)}")
         
@@ -1150,24 +1627,30 @@ GUIフレームワーク（Python標準ライブラリ）
             if result:
                 try:
                     os.rename(file_path, new_file_path)
-                    messagebox.showinfo("成功", f"ファイル名を変更しました。\n\n{new_filename}")
-                    # ウィンドウを閉じて再表示
-                    exif_window.destroy()
-                    self.show_exif_info_window(new_file_path, new_filename)
-                    # ファイル一覧を更新
+                    messagebox.showinfo("成功", f"ファイル名を変更しました。（このファイルのみ）\n\n{new_filename}")
+                    # ファイル一覧の該当項目を更新
+                    self._exif_file_list[self._exif_current_index] = (new_file_path, new_filename)
                     self.update_file_list()
+                    self._refresh_exif_content()
                 except Exception as e:
                     messagebox.showerror("エラー", f"ファイル名の変更に失敗しました:\n{str(e)}")
         
-        ttk.Button(button_frame, text="撮影日時に合わせてファイル日時を更新", command=update_file_date).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="撮影日時に合わせてファイル日時を更新（このファイルのみ）", command=update_file_date).pack(side=tk.LEFT, padx=5)
         def rename_or_show_pro_limit():
             if not self.license_manager.check_license():
                 messagebox.showinfo("Pro版限定", "撮影日時に基づくファイル名変更はPro版の機能です。")
                 return
             rename_file_by_shoot_date()
-        ttk.Button(button_frame, text="撮影日時に合わせてファイル名を変更", command=rename_or_show_pro_limit).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="撮影日時に合わせてファイル名を変更（このファイルのみ）", command=rename_or_show_pro_limit).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="表示中の全ファイルに日時を一括更新", command=self._exif_batch_update_dates).pack(side=tk.LEFT, padx=5)
+        def exif_batch_rename():
+            if not self.license_manager.check_license():
+                messagebox.showinfo("Pro版限定", "撮影日時に基づくファイル名一括変更はPro版の機能です。")
+                return
+            self._exif_batch_rename()
+        ttk.Button(button_frame, text="表示中の全ファイルの名前を一括変更", command=exif_batch_rename).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="クリップボードにコピー", command=copy_to_clipboard).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="閉じる", command=exif_window.destroy).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="閉じる", command=self._on_exif_viewer_close).pack(side=tk.LEFT, padx=5)
     
     def start_compression(self):
         """圧縮を開始"""
@@ -1185,6 +1668,10 @@ GUIフレームワーク（Python標準ライブラリ）
         if not output_path:
             messagebox.showerror("エラー", "出力フォルダを選択してください")
             return
+        
+        # compressed_filesサブフォルダを使用する場合
+        if self.use_compressed_subfolder_var.get():
+            output_path = os.path.join(output_path, "compressed_files")
         
         os.makedirs(output_path, exist_ok=True)
         self._save_last_folders()
@@ -1209,7 +1696,7 @@ GUIフレームワーク（Python標準ライブラリ）
         
         try:
             # 対象ファイルを取得
-            supported_extensions = [".jpg", ".jpeg", ".png", ".heic", ".webp"]
+            supported_extensions = [".jpg", ".jpeg", ".png", ".heic", ".webp", ".tif", ".tiff", ".bmp"]
             all_files = [f for f in os.listdir(input_path) 
                         if os.path.isfile(os.path.join(input_path, f)) 
                         and os.path.splitext(f)[1].lower() in supported_extensions]
@@ -1272,6 +1759,12 @@ GUIフレームワーク（Python標準ライブラリ）
                         output_format = "jpg"
                     elif ext == ".png":
                         output_format = "png"
+                    elif ext in [".tif", ".tiff"]:
+                        output_format = "tiff"
+                    elif ext == ".bmp":
+                        output_format = "jpg"  # BMP→JPG が一般的（手動で PNG 等も選択可）
+                    elif ext == ".webp":
+                        output_format = "webp"
                     else:
                         output_format = "jpg"
                 
@@ -1283,19 +1776,19 @@ GUIフレームワーク（Python標準ライブラリ）
                     output_file_path = f"{name}.png"
                 elif output_format == "webp":
                     output_file_path = f"{name}.webp"
+                elif output_format == "tiff":
+                    output_file_path = f"{name}.tiff"
+                elif output_format == "bmp":
+                    output_file_path = f"{name}.bmp"
                 
                 # 圧縮実行
                 success, result = self.compressor.compress_image(file_path, output_file_path)
                 file_processing_time = time.time() - file_start_time
                 
-                # 実際の出力パスを取得（compress_imageが返す実際のパスを使用）
+                # 実際の出力パスを取得（ compressorがサフィックス付きで作成）
                 if success and "output_path" in result:
                     actual_output_path = result["output_path"]
-                    # 実際の出力パスにファイルを移動（必要に応じて）
-                    if actual_output_path != output_file_path and os.path.exists(actual_output_path):
-                        import shutil
-                        shutil.move(actual_output_path, output_file_path)
-                    actual_filename = os.path.basename(output_file_path)
+                    actual_filename = os.path.basename(actual_output_path)
                 else:
                     actual_filename = filename
                 

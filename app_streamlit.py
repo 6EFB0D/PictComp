@@ -199,6 +199,10 @@ def generate_filename_from_exif(image_bytes, filename, original_name, output_for
                     ext = ".png"
                 elif output_format == "webp":
                     ext = ".webp"
+                elif output_format == "tiff":
+                    ext = ".tiff"
+                elif output_format == "bmp":
+                    ext = ".bmp"
             
             new_filename = f"{shoot_date.strftime('%Y%m%d_%H%M%S')}{ext}"
             
@@ -439,7 +443,8 @@ def main():
         if settings.max_dimension == 0:
             settings.max_dimension = None
         settings.jpeg_quality = st.slider("JPEG品質", 20, 100, settings.jpeg_quality, key="jpeg_quality")
-        settings.output_format = st.selectbox("出力形式", ["auto", "jpg", "png", "webp"], key="output_format")
+        settings.output_format = st.selectbox("出力形式", ["auto", "jpg", "png", "webp", "tiff", "bmp"], key="output_format")
+        settings.convert_only = st.checkbox("形式変換のみ（圧縮・リサイズなし）", value=getattr(settings, "convert_only", False), key="convert_only")
         
         # EXIF保持: Web公開プリセットは削除固定、無料版はPro限定、Pro版のみ選択可
         is_web_preset = PresetManager.is_web_publishing_preset(selected_preset)
@@ -545,7 +550,7 @@ def main():
             try:
                 uploaded_result = st.file_uploader(
                     "画像ファイルを選択（複数選択可）",
-                    type=["jpg", "jpeg", "png", "heic", "webp"],
+                    type=["jpg", "jpeg", "png", "heic", "webp", "tif", "tiff", "bmp"],
                     accept_multiple=True,
                     key="file_uploader_main"
                 )
@@ -577,7 +582,7 @@ def main():
             # 単一ファイル選択（support_multipleがFalseの場合、またはエラーが発生した場合）
             uploaded_result = st.file_uploader(
                 "画像ファイルを選択",
-                type=["jpg", "jpeg", "png", "heic", "webp"],
+                type=["jpg", "jpeg", "png", "heic", "webp", "tif", "tiff", "bmp"],
                 key="file_uploader_main"
             )
             
@@ -836,6 +841,10 @@ def main():
                             final_ext = ".png"
                         elif output_format == "webp":
                             final_ext = ".webp"
+                        elif output_format == "tiff":
+                            final_ext = ".tiff"
+                        elif output_format == "bmp":
+                            final_ext = ".bmp"
                         else:
                             final_ext = original_ext
                         
@@ -1105,8 +1114,9 @@ def main():
         
         ### 対応形式
         
-        - **入力**: JPEG, PNG, HEIC, WebP
-        - **出力**: JPEG, PNG, WebP
+        - **入力**: JPEG, PNG, HEIC, WebP, TIFF, BMP
+        - **出力**: JPEG, PNG, WebP, TIFF, BMP
+        - **形式変換**: 圧縮と同時に出力形式を変更可能（例: HEIC→JPEG、TIFF→PNG）
         
         ### 無料版とPro版の違い
         
@@ -1115,8 +1125,8 @@ def main():
         | 機能 | 無料版 | Pro版 |
         |------|--------|-------|
         | 1回の処理枚数 | 20枚まで | 無制限 |
-        | 基本圧縮 | ✅ | ✅ |
-        | PNG/WebP | ✅ | ✅ |
+        | 基本圧縮・形式変換 | ✅ | ✅ |
+        | PNG/WebP/TIFF/BMP | ✅ | ✅ |
         | リサイズ | ✅ | ✅ |
         | プリセット | ✅ | ✅ |
         | EXIF情報閲覧 | ✅ | ✅ |
@@ -1142,7 +1152,7 @@ def main():
         # 機能一覧
         st.subheader("📌 機能一覧")
         st.markdown("""
-        ✅ **基本機能**: 画像一括圧縮（JPEG、PNG、HEIC、WebP）、リサイズ、EXIFメタデータ保持オプション、プリセット
+        ✅ **基本機能**: 画像一括圧縮・形式変換（JPEG、PNG、HEIC、WebP、TIFF、BMP）、リサイズ、EXIFメタデータ保持オプション、プリセット
         
         ✅ **EXIF情報閲覧**: 撮影日時、カメラ情報、GPS情報の表示
         

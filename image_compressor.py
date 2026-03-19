@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 画像圧縮エンジン
-PNG、JPEG、WebP、HEIC形式に対応した画像圧縮・リサイズ機能を提供
+JPEG、PNG、WebP、HEIC、TIFF、BMP形式に対応した画像圧縮・リサイズ・形式変換機能を提供
 """
 import os
 from PIL import Image
@@ -20,7 +20,10 @@ class CompressionSettings:
         self.webp_lossless = False  # WebP可逆圧縮
         self.max_dimension = None  # 最大サイズ（長辺ピクセル、None=リサイズなし）
         self.keep_exif = True  # EXIF保持
-        self.output_format = "auto"  # 出力形式: "auto", "jpg", "png", "webp"
+        self.output_format = "auto"  # 出力形式: "auto", "jpg", "png", "webp", "tiff", "bmp"
+        self.convert_only = False  # True: 形式変換のみ（圧縮・リサイズなし）
+        self.output_suffix = "_compressed"  # 出力ファイル名のサフィックス（上書き防止）
+        self.output_prefix = ""  # 出力ファイル名のプレフィックス
     
     def to_dict(self) -> Dict:
         """設定を辞書形式で返す"""
@@ -32,7 +35,10 @@ class CompressionSettings:
             "webp_lossless": self.webp_lossless,
             "max_dimension": self.max_dimension,
             "keep_exif": self.keep_exif,
-            "output_format": self.output_format
+            "output_format": self.output_format,
+            "convert_only": self.convert_only,
+            "output_suffix": self.output_suffix,
+            "output_prefix": self.output_prefix
         }
     
     def from_dict(self, settings: Dict):
@@ -102,14 +108,17 @@ class ImageCompressor:
     
     def compress_jpeg(self, img: Image.Image, output_path: str, target_size_bytes: Optional[int] = None) -> bool:
         """JPEG形式で圧縮"""
-        if target_size_bytes is None:
-            target_size_bytes = self.settings.target_size_kb * 1024
-        
         # EXIF処理
         exif_data = self.get_exif(img)
         img = self.apply_orientation(img)
         
-        quality = self.settings.jpeg_quality
+        if self.settings.convert_only:
+            quality = 100
+        else:
+            if target_size_bytes is None:
+                target_size_bytes = self.settings.target_size_kb * 1024
+            quality = self.settings.jpeg_quality
+        
         while True:
             save_kwargs = {"format": "JPEG", "quality": quality, "optimize": True}
             if exif_data and self.settings.keep_exif:
@@ -119,8 +128,9 @@ class ImageCompressor:
                     pass
             
             img.save(output_path, **save_kwargs)
+            if self.settings.convert_only:
+                break
             file_size = os.path.getsize(output_path)
-            
             if file_size <= target_size_bytes or quality <= 20:
                 break
             quality -= 5
@@ -129,23 +139,50 @@ class ImageCompressor:
     
     def compress_png(self, img: Image.Image, output_path: str) -> bool:
         """PNG形式で圧縮（透過情報を保持）"""
+        compress_level = 0 if self.settings.convert_only else self.settings.png_compress_level
         # 透過PNGの保持
         if img.mode in ("RGBA", "LA"):
             # 透過情報を保持
             img.save(
                 output_path,
                 format="PNG",
-                compress_level=self.settings.png_compress_level,
-                optimize=True
+                compress_level=compress_level,
+                optimize=not self.settings.convert_only
             )
         else:
             # 透過なしPNG
             img.save(
                 output_path,
                 format="PNG",
-                compress_level=self.settings.png_compress_level,
-                optimize=True
+                compress_level=compress_level,
+                optimize=not self.settings.convert_only
             )
+        return True
+    
+    def compress_tiff(self, img: Image.Image, output_path: str) -> bool:
+        """TIFF形式で保存（LZW圧縮）"""
+        # EXIF処理
+        exif_data = self.get_exif(img)
+        img = self.apply_orientation(img)
+        
+        save_kwargs = {
+            "format": "TIFF",
+            "compression": "tiff_lzw",  # 可逆圧縮
+        }
+        if exif_data and self.settings.keep_exif:
+            try:
+                save_kwargs["exif"] = img.getexif()
+            except Exception:
+                pass
+        
+        img.save(output_path, **save_kwargs)
+        return True
+    
+    def save_bmp(self, img: Image.Image, output_path: str) -> bool:
+        """BMP形式で保存（形式変換用、非圧縮）"""
+        img = self.apply_orientation(img)
+        # BMPはEXIF非対応、非圧縮形式
+        img.save(output_path, format="BMP")
         return True
     
     def compress_webp(self, img: Image.Image, output_path: str) -> bool:
@@ -156,8 +193,8 @@ class ImageCompressor:
         
         save_kwargs = {
             "format": "WEBP",
-            "quality": self.settings.webp_quality,
-            "lossless": self.settings.webp_lossless,
+            "quality": 100 if self.settings.convert_only else self.settings.webp_quality,
+            "lossless": True if self.settings.convert_only else self.settings.webp_lossless,
             "method": 6  # 最高品質の圧縮方法
         }
         
@@ -181,6 +218,12 @@ class ImageCompressor:
             return "jpg"
         elif ext == ".png":
             return "png"
+        elif ext in [".tif", ".tiff"]:
+            return "tiff"
+        elif ext == ".webp":
+            return "webp"
+        elif ext == ".bmp":
+            return "jpg"  # BMP→JPG が一般的なニーズ（ファイルサイズ削減）
         else:
             return "jpg"  # デフォルト
     
@@ -209,33 +252,47 @@ class ImageCompressor:
                 heif_file = pillow_heif.read_heif(input_path)
                 img = Image.frombytes(heif_file.mode, heif_file.size, heif_file.data)
             else:
+                # JPEG, PNG, WebP, TIFF, BMP 等は PIL で開く
                 img = Image.open(input_path)
             
-            # リサイズ
-            img = self.resize_image(img)
+            # リサイズ（形式変換のみの場合はスキップ）
+            if not self.settings.convert_only:
+                img = self.resize_image(img)
             
             # 出力形式を決定
             output_format = self.determine_output_format(input_path, ext)
             result["format"] = output_format
             
-            # 出力パスを確定
-            output_name, _ = os.path.splitext(os.path.basename(output_path))
+            # 出力パスを確定（プレフィックス・サフィックス対応）
+            base_name, _ = os.path.splitext(os.path.basename(output_path))
+            suffix = getattr(self.settings, "output_suffix", "_compressed") or ""
+            prefix = getattr(self.settings, "output_prefix", "") or ""
+            output_name = f"{prefix}{base_name}{suffix}"
+            out_dir = os.path.dirname(output_path)
             if output_format == "jpg":
-                final_output_path = os.path.join(os.path.dirname(output_path), f"{output_name}_compressed.jpg")
+                final_output_path = os.path.join(out_dir, f"{output_name}.jpg")
             elif output_format == "png":
-                final_output_path = os.path.join(os.path.dirname(output_path), f"{output_name}_compressed.png")
+                final_output_path = os.path.join(out_dir, f"{output_name}.png")
             elif output_format == "webp":
-                final_output_path = os.path.join(os.path.dirname(output_path), f"{output_name}_compressed.webp")
+                final_output_path = os.path.join(out_dir, f"{output_name}.webp")
+            elif output_format == "tiff":
+                final_output_path = os.path.join(out_dir, f"{output_name}.tiff")
+            elif output_format == "bmp":
+                final_output_path = os.path.join(out_dir, f"{output_name}.bmp")
             else:
                 final_output_path = output_path
             
-            # 圧縮実行
+            # 圧縮・形式変換実行
             if output_format == "jpg":
                 self.compress_jpeg(img, final_output_path)
             elif output_format == "png":
                 self.compress_png(img, final_output_path)
             elif output_format == "webp":
                 self.compress_webp(img, final_output_path)
+            elif output_format == "tiff":
+                self.compress_tiff(img, final_output_path)
+            elif output_format == "bmp":
+                self.save_bmp(img, final_output_path)
             else:
                 raise ValueError(f"未対応の出力形式: {output_format}")
             

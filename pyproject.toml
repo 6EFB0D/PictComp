@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pictcomp"
 version = "2.0.0"
-description = "画像一括圧縮アプリ - JPEG, PNG, HEIC, WebP対応"
+description = "画像一括圧縮・形式変換アプリ - JPEG, PNG, HEIC, WebP, TIFF, BMP対応"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
@@ -16,7 +16,7 @@ authors = [
 [project.urls]
 Homepage = "https://6EFB0D.github.io/office-goplan/"
 Repository = "https://github.com/6EFB0D/PictComp_Dev"
-keywords = ["image", "compression", "resize", "jpeg", "png", "heic", "webp"]
+keywords = ["image", "compression", "resize", "format-conversion", "jpeg", "png", "heic", "webp", "tiff", "bmp"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: GUI",
